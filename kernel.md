@@ -1,10 +1,42 @@
-# Table of contents:
-- [Software interface](#Software-interface)
- - [Kernel Parameters (BASEADDR+0)](#Kernel-Parameters-(BASEADDR+0));
- - [RX Buffers (BASEADDR+0x800)](#RX-Buffers-(BASEADDR+0x800));
- - [Communicators (BASEADDR+0x800 + 4*(1 + buf_count*9))](#Communicators-(BASEADDR+0x800-+-4*(1-+-buf_count*9)));
- - [Miscellaneous](#Miscellaneous);
-- [Drivers](#Drivers)
+
+# The CCLO Kernel
+
+The  CCL  Offload  (CCLO)  kernel  implements  the  ACCL primitives  by  orchestrating  data  movement  between  the  net-work  fabric,  FPGA  external  memory,  and  FPGA  compute kernels, with no host CPU involvement. Data movement to and from  the  network  is  accomplished  through  custom  interface blocks  to  the  TCP/UDP  network  protocol  offload  engines,while  FPGA  external  memory  (DDR  or  HBM)  is  read  and written through DataMover engines (DMA). The following image gives a top-level overview of the CCLO.
+
+![schematic](images/drawing_offload.svg)
+
+the  CCLO  consists  of  
+  - three [AXI DataMovers](https://www.xilinx.com/support/documentation/ip_documentation/axi_datamover/v5_1/pg022_axi_datamover.pdf) engines (DMA0, DMA1,DMA2)
+  -   [AXI  Stream  (AXIS)  interconnects](https://www.xilinx.com/support/documentation/ip_documentation/axis_infrastructure_ip_suite/v1_1/pg085-axi4stream-infrastructure.pdf),  
+  - an internal arithmetic unit 
+  - network interface logic (UD,UP, TP, TD).
+  Data flows through all those components via 512bit wide AXIS interfaces [15], that are connected together via the central AXIS Switch.
+
+  - The ``CTRL`` module orchestrates the movement of information inside the ACCL_Offload, and therefore it ultimately implements the MPI collectives. 
+
+  
+  The ACCL_Offload relies extensively on AXI protocols (both MMAP and STREAM) and on several Xilinx IPs to exchange data. If you need more info on the protocol go to [AXI MMAP spec](https://developer.arm.com/docs/ihi0022/e?_ga=2.67820049.1631882347.1556009271-151447318.1544783517), [AXI STREAM spec](https://developer.arm.com/docs/ihi0051/latest), [UG761](https://www.xilinx.com/support/documentation/ip_documentation/axi_ref_guide/latest/ug761_axi_reference_guide.pdf) and [UG1037](https://www.xilinx.com/support/documentation/ip_documentation/axi_ref_guide/latest/ug1037-vivado-axi-reference-guide.pdf).
+
+More info at [../kernel/readme.md#Architecture](../kernel/readme.md#Architecture).
+
+
+## Kernel Interfaces
+The host communicates with the CCLO through a 8kB IO space which starts at ``BASEADDR`` and is implemented by the ``s_axi_control`` port.
+Moreover, the CCLO modifies the FPGA off-chip memory in the DDR through two AXI4 MMAP master, namely ``m_axi_0``, ``m_axi_1``, ```m_axi_2``.
+It then communicates with the network stack through ``net_rx``, ``net_tx`` AXI Stream ports to send and receive messages from other ACCL_Offload instances.
+The following table reports the ACCL_Offload interfaces and their main parameters.
+
+name          | port type           | range              | data width   
+-----         |------               |-------             |-----------   
+s_axi_control | addressable slave   | 8192 B (8 KB)      | 32         
+m_axi_0       | addressable master  | 17,179,869,184 GB (16 EXAB) | 512        
+m_axi_1       | addressable master  | 17,179,869,184 GB (16 EXAB) | 512   
+m_axi_2       | addressable master  | 17,179,869,184 GB (16 EXAB) | 512        
+net_rx        | stream              | n.a                | 512       
+net_tx        | stream              | n.a                | 512         
+
+[Source: kernel/ccl_offload_ex/imports/kernel.xml](../kernel/ccl_offload_ex/imports/kernel.xml)
+
 ## Software interface
 
 The CCLO communicate with the host through a 8kB IO space which starts at ``BASEADDR`` and is implemented by the ``s_axi_control`` port.
@@ -160,9 +192,6 @@ If the base address is 0x1820000, and we can parse the memory from 0x10 offset t
   #define DMA_INTERNAL_ERROR                            2     
   ...
   ````
-
-# Drivers
-We have both Python and C++ bindings to abstract and simplify the interaction with cclo. 
 
 ## Expected flow:
 

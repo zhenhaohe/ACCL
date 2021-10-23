@@ -61,6 +61,7 @@ accl_inst.deinit()
 send(comm_id, srcbuf, dst, tag=TAG_ANY, from_fpga=False, run_async=False, waitfor=[])
 ````
 ACCL equivalent for MPI `send`. Sends a buffer to another over the network. Returns a call handle if called asynchronously.
+
 | Argument  | Description |
 | ------------- | ------------- |
 | comm_id | Numerical ID of the communicator in which the transmission is performed |
@@ -75,6 +76,7 @@ ACCL equivalent for MPI `send`. Sends a buffer to another over the network. Retu
 recv(comm_id, dstbuf, src, tag=TAG_ANY, to_fpga=False, run_async=False, waitfor=[])
 ````
 ACCL equivalent for MPI `recv`. Receives a buffer from another node over the network. Returns a call handle if called asynchronously.
+
 | Argument  | Description |
 | ------------- | ------------- |
 | comm_id | Numerical ID of the communicator in which the transmission is performed |
@@ -89,6 +91,7 @@ ACCL equivalent for MPI `recv`. Receives a buffer from another node over the net
 copy(srcbuf, dstbuf,  from_fpga=False,  to_fpga=False, run_async=False, waitfor=[])
 ````
 Local copy between `srcbuf` and `dstbuf`. Returns a call handle if called asynchronously.
+
 | Argument  | Description |
 | ------------- | ------------- |
 | srcbuf | Source Pynq buffer |
@@ -102,6 +105,7 @@ Local copy between `srcbuf` and `dstbuf`. Returns a call handle if called asynch
 combine(func, val1, val2, result, val1_from_fpga=False, val2_from_fpga=False, to_fpga=False, run_async=False, waitfor=[])
 ````
 Apply a reduction function locally to buffers `val1` and `val2`. Returns a call handle if called asynchronously.
+
 | Argument  | Description |
 | ------------- | ------------- |
 | val1 | Source Pynq buffer |
@@ -119,6 +123,7 @@ Apply a reduction function locally to buffers `val1` and `val2`. Returns a call 
 bcast(comm_id, buf, root, from_fpga=False, to_fpga=False, run_async=False, waitfor=[])
 ````
 ACCL equivalent for MPI broadcast. A root node sends a buffer to all others over the network. Returns a call handle if called asynchronously.
+
 | Argument  | Description |
 | ------------- | ------------- |
 | comm_id | Numerical ID of the communicator in which the transmission is performed |
@@ -133,6 +138,7 @@ ACCL equivalent for MPI broadcast. A root node sends a buffer to all others over
 scatter(comm_id, sbuf, rbuf, count, root, from_fpga=False, to_fpga=False, run_async=False, waitfor=[])
 ````
 ACCL equivalent for MPI scatter. A root node sends segments of a source buffer to all nodes. Returns a call handle if called asynchronously.
+
 | Argument  | Description |
 | ------------- | ------------- |
 | comm_id | Numerical ID of the communicator in which the transmission is performed |
@@ -149,6 +155,7 @@ ACCL equivalent for MPI scatter. A root node sends segments of a source buffer t
 gather(comm_id, sbuf, rbuf, count, root, from_fpga=False, to_fpga=False, run_async=False, waitfor=[])
 ````
 ACCL equivalent for MPI gather. A root node receives segments of a destination buffer from all nodes. Returns a call handle if called asynchronously.
+
 | Argument  | Description |
 | ------------- | ------------- |
 | comm_id | Numerical ID of the communicator in which the transmission is performed |
@@ -165,6 +172,7 @@ ACCL equivalent for MPI gather. A root node receives segments of a destination b
 allgather(comm_id, sbuf, rbuf, count, from_fpga=False, to_fpga=False, run_async=False, waitfor=[])
 ````
 ACCL equivalent for MPI allgather. Each node sends its send buffer and receives the concatenation of buffers sent by all nodes (including itself). Returns a call handle if called asynchronously.
+
 | Argument  | Description |
 | ------------- | ------------- |
 | comm_id | Numerical ID of the communicator in which the transmission is performed |
@@ -180,6 +188,7 @@ ACCL equivalent for MPI allgather. Each node sends its send buffer and receives 
 reduce(comm_id, sbuf, rbuf, count, root, func, from_fpga=False, to_fpga=False, run_async=False, waitfor=[])
 ````
 ACCL equivalent for MPI reduce. Each node sends its send buffer and the root node receives and combines these buffers using the specifie function. Returns a call handle if called asynchronously.
+
 | Argument  | Description |
 | ------------- | ------------- |
 | comm_id | Numerical ID of the communicator in which the transmission is performed |
@@ -197,6 +206,7 @@ ACCL equivalent for MPI reduce. Each node sends its send buffer and the root nod
 allreduce(comm_id, sbuf, rbuf, count, func, from_fpga=False, to_fpga=False, run_async=False, waitfor=[])
 ````
 ACCL equivalent for MPI all-reduce. Similar to reduce, but each node gets the result of the reduction. Returns a call handle if called asynchronously.
+
 | Argument  | Description |
 | ------------- | ------------- |
 | comm_id | Numerical ID of the communicator in which the transmission is performed |
@@ -213,6 +223,7 @@ ACCL equivalent for MPI all-reduce. Similar to reduce, but each node gets the re
 reduce_scatter(comm_id, sbuf, rbuf, count, func, from_fpga=False, to_fpga=False, run_async=False, waitfor=[]):
 ````
 ACCL equivalent for MPI scatter-reduce. Equivalent to a reduce followed by a scatter. Returns a call handle if called asynchronously.
+
 | Argument  | Description |
 | ------------- | ------------- |
 | comm_id | Numerical ID of the communicator in which the transmission is performed |
@@ -231,6 +242,7 @@ ACCL equivalent for MPI scatter-reduce. Equivalent to a reduce followed by a sca
 accl(xclbin, ranks, local_rank, protocol, board_idx, nbufs, bufsize, mem, arith_config)
 ````
 The ACCL constructor, which allocates message buffers for the receive pipeline of the CCLO and for the TCP POE if requested, configures communicators, and initializes the ACCL kernel. Does not return anything, but as side-effect, it sets all ACCL fields.
+
 | Argument  | Description |
 | ------------- | ------------- |
 | xclbin  | Path to XCLBIN file, which will be programmed into the FPGA |

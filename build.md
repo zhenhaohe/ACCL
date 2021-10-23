@@ -1,5 +1,7 @@
 
-# How to build it
+# Building ACCL Hardware
+
+## Building the CCLO and POEs
 The CCLO build process is automated and organized via Makefiles that are distributed across the repo. The build process is split into 2 steps:
 
 1. building the CCLO IP. The main Makefile is [../kernel/Makefile](/kernel/Makefile). After this process an ``ccl_offload.xo`` file would be created under ``../kernel/ccl_offload_ex/exports``. 
@@ -13,7 +15,7 @@ Alveo shell currently supported:
 - ``xilinx_u250_gen3x16_xdma_3_1_202020_1``
 - ``xilinx_u280_xdma_201920_3``
 
-# How to integrate it
+## System Integration
 
 Once you have built CCL_Offload and packaged into an IP, you can include it in 
 your Vitis ``config.ini`` file in order to connect it to other kernels.

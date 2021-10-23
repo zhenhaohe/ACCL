@@ -4,7 +4,7 @@ ACCL (pronounced like [Achill](https://goo.gl/maps/4e3vGfa5BsT5s3vm9), the Irish
 
 ## Why MPI, and how much of it?
 
-The Message Passing Interface ([MPI](http://mpi-forum.org/)), is a standardized and portable message-passing system designed to function on a wide variety of parallel computers. Its wide availability, universal support and high performance make it the lingua franca of distributed computing and a natural API to follow when implementing specialized distributed computation frameworks such as ACCL. ACCL implements send and receive MPI primitives and seven of the most common collectives:
+The Message Passing Interface ([MPI](http://mpi-forum.org/)), is a standardized and portable message-passing system designed to function on a wide variety of parallel computers. Its wide availability, universal support and high performance make it the lingua franca of distributed computing and a natural API to follow when implementing specialized distributed computation frameworks such as ACCL. ACCL implements the send and receive MPI primitives and seven of the most common collectives:
 - send and recv
 - broadcast
 - gather and allgather
@@ -13,7 +13,7 @@ The Message Passing Interface ([MPI](http://mpi-forum.org/)), is a standardized 
 
 ## ACCL Structure
 
-ACCL is a combination of software running on the host CPU, FPGA data-moving hardware, and control firmware executing ona FPGA-embedded microcontroller. Here is a high level overview of the ACCL structure:
+ACCL is a combination of software running on the host CPU, FPGA data-moving hardware, and control firmware executing on a FPGA-embedded microcontroller. Here is a high level overview of the ACCL structure:
 
 ![schematic](images/ccl_kernels.svg)
 

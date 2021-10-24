@@ -1,5 +1,12 @@
+# ACCL Structure
 
-# The CCLO Kernel
+ACCL is a combination of software running on the host CPU, FPGA data-moving hardware, and control firmware executing on a FPGA-embedded microcontroller. Here is a high level overview of the ACCL structure:
+
+![schematic](images/ccl_kernels.svg)
+
+In the FPGA, ACCL features a collectives offload engine (`CCLO`) and one or more network protocol offload engines (`POE`), each of which is implemented as a stand-alone Vitis kernel. The `CCLO` implements the collectives by orchestrating data movement between host, FPGA memory and POEs, and is described in more detail in the [Hardware](./kernel.md) page. The protocol offload engines implements the full network stack up to `UDP` and `TCP/IP` respectively and connect directly to Ethernet ports, e.g. through Alveo Gigabit Transceivers and `QSFP28` ports. The host communicates with the CCLO over `PCIe` and `Xilinx XDMA`, but this complexity is hidden by XRT and our drivers, as described in the [API](./api.md) page. 
+
+## The CCLO Kernel
 
 The  CCL  Offload  (CCLO)  kernel  implements  the  ACCL primitives  by  orchestrating  data  movement  between  the  net-work  fabric,  FPGA  external  memory,  and  FPGA  compute kernels, with no host CPU involvement. Data movement to and from  the  network  is  accomplished  through  custom  interface blocks  to  the  TCP/UDP  network  protocol  offload  engines,while  FPGA  external  memory  (DDR  or  HBM)  is  read  and written through DataMover engines (DMA). The following image gives a top-level overview of the CCLO.
 

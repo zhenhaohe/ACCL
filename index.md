@@ -11,10 +11,9 @@ The Message Passing Interface ([MPI](http://mpi-forum.org/)), is a standardized 
 - scatter and reduce-scatter
 - reduce and allreduce
 
-## ACCL Structure
+## ACCL System-Level View
 
-ACCL is a combination of software running on the host CPU, FPGA data-moving hardware, and control firmware executing on a FPGA-embedded microcontroller. Here is a high level overview of the ACCL structure:
+The concepts underpinning ACCL are illustrated in the figure below. In this example, two nodes communicate with ACCL. The user application makes compute calls via the Xilinx Run-Time (XRT) to user-defined compute kernels in the FPGA fabric. The application also makes communication calls, using the [ACCL API](./api.md) to move data between nodes. These MPI-like calls get interpreted by the ACCL driver which issues commands to communication specific kernels in the FPGA, described in the [Hardware](./kernel.md) Page. All data submitted to ACCL communication calls gets transferred directly between the Alveo cards via the embedded 100 Gbps Ethernet ports. Some data may also be exchanged utilizing the host network, typically for initial set-up of the application and ACCL driver.
 
-![schematic](images/ccl_kernels.svg)
+![schematic](images/overview.png)
 
-In the FPGA, ACCL features a collectives offload engine (`CCLO`) and one or more network protocol offload engines (`POE`), each of which is implemented as a stand-alone Vitis kernel. The `CCLO` implements the collectives by orchestrating data movement between host, FPGA memory and POEs, and is described in more detail in the [Hardware](./kernel.md) page. The protocol offload engines implements the full network stack up to `UDP` and `TCP/IP` respectively and connect directly to Ethernet ports, e.g. through Alveo Gigabit Transceivers and `QSFP28` ports. The host communicates with the CCLO over `PCIe` and `Xilinx XDMA`, but this complexity is hidden by XRT and our drivers, as described in the [API](./api.md) page. 

@@ -1,31 +1,36 @@
-# ACCL Structure
+# ACCL Under the Hood
 
 ACCL is a combination of software running on the host CPU, FPGA data-moving hardware, and control firmware executing on a FPGA-embedded microcontroller. Here is a high level overview of the ACCL structure:
 
 ![schematic](images/ccl_kernels.svg)
 
-In the FPGA, ACCL features a collectives offload engine (`CCLO`) and one or more network protocol offload engines (`POE`), each of which is implemented as a stand-alone Vitis kernel. The `CCLO` implements the collectives by orchestrating data movement between host, FPGA memory and POEs, and is described in more detail in the [Hardware](./kernel.md) page. The protocol offload engines implements the full network stack up to `UDP` and `TCP/IP` respectively and connect directly to Ethernet ports, e.g. through Alveo Gigabit Transceivers and `QSFP28` ports. The host communicates with the CCLO over `PCIe` and `Xilinx XDMA`, but this complexity is hidden by XRT and our drivers, as described in the [API](./api.md) page. 
+In the FPGA, ACCL features a collectives offload engine (CCLO) and one or more network protocol offload engines (POE), each of which is implemented as a stand-alone Vitis kernel. The CCLO implements the collectives on top of TCP or UDP. The protocol offload engines implements the full network stack up to UDP and TCP respectively and connect directly to Ethernet ports, e.g. through Alveo Gigabit Transceivers and QSFP28 ports. For TCP, the protocol offload kernel requires access to external memory to reorder incoming packets. The host communicates with the CCLO over PCIe and Xilinx XDMA, but this complexity is hidden by XRT and our drivers. The distributed application that runs on, possibly multiple, hosts leverages the ACCL Python or C++ driver to control the CCLO.
 
 ## The CCLO Kernel
 
-The  CCL  Offload  (CCLO)  kernel  implements  the  ACCL primitives  by  orchestrating  data  movement  between  the  net-work  fabric,  FPGA  external  memory,  and  FPGA  compute kernels, with no host CPU involvement. Data movement to and from  the  network  is  accomplished  through  custom  interface blocks  to  the  TCP/UDP  network  protocol  offload  engines,while  FPGA  external  memory  (DDR  or  HBM)  is  read  and written through DataMover engines (DMA). The following image gives a top-level overview of the CCLO.
+The CCL Offload (CCLO) kernel implements all the ACCL primitives and collectives by orchestrating data movement between the network fabric, FPGA external memory, and FPGA compute kernels, with no host CPU involvement. Data movement to and from the network is accomplished through custom interface blocks to the TCP/UDP network protocol offload engines, while FPGA external memory (DDR or HBM) is read and written through DataMover engines (DMA).
 
-![schematic](images/drawing_offload.svg)
+Each ACCL call typically requires multiple transfers in specific sequences between ranks to achieve the desired result. Orchestrating the required transfers and the interaction between various subsystems at high speed is a challenge. For this reason, the CCLO kernel consists of two subsystems: a software-programmable control plane which is extremely flexible, and a high-throughput data plane consisting of DMAs, configurable routing, and pipelined arithmetic, which is fast.
 
-the  CCLO  consists  of  
-  - three [AXI DataMovers](https://www.xilinx.com/support/documentation/ip_documentation/axi_datamover/v5_1/pg022_axi_datamover.pdf) engines (DMA0, DMA1,DMA2)
-  -   [AXI  Stream  (AXIS)  interconnects](https://www.xilinx.com/support/documentation/ip_documentation/axis_infrastructure_ip_suite/v1_1/pg085-axi4stream-infrastructure.pdf),  
-  - an internal arithmetic unit 
-  - network interface logic (UD,UP, TP, TD).
-  Data flows through all those components via 512bit wide AXIS interfaces [15], that are connected together via the central AXIS Switch.
+### CCLO Data Plane
 
-  - The ``CTRL`` module orchestrates the movement of information inside the ACCL_Offload, and therefore it ultimately implements the MPI collectives. 
+The image below presents a high level overview of the CCLO data plane structure which consists of multiple functional units (FUs) - three  AXI DataMover engines (DMA0, DMA1, DMA2), AXI Stream (AXIS) interconnects (e.g. S0, S1), an internal arithmetic unit (A0) and network interface logic (UD, UP, TP, TD). Data flows through all those components via 512 bit wide AXIS interfaces connected together via the central AXIS Switch. 
 
-  
-  The ACCL_Offload relies extensively on AXI protocols (both MMAP and STREAM) and on several Xilinx IPs to exchange data. If you need more info on the protocol go to [AXI MMAP spec](https://developer.arm.com/docs/ihi0022/e?_ga=2.67820049.1631882347.1556009271-151447318.1544783517), [AXI STREAM spec](https://developer.arm.com/docs/ihi0051/latest), [UG761](https://www.xilinx.com/support/documentation/ip_documentation/axi_ref_guide/latest/ug761_axi_reference_guide.pdf) and [UG1037](https://www.xilinx.com/support/documentation/ip_documentation/axi_ref_guide/latest/ug1037-vivado-axi-reference-guide.pdf).
+AXI DataMover engines (DMA) transfer between AXI memory mapped (AXIMM) and AXI stream (AXIS) domains. Each DMA provides two channels dedicated to read (memory to stream) and write (stream to memory) operations respectively. Each of the channels is independently controlled through a pair of AXI Streams, carrying DMA commands and command acknowledgements respectively.  
 
-More info at [../kernel/readme.md#Architecture](../kernel/readme.md#Architecture).
+![schematic](images/drawing_offload_data_plane_with_datapath_simplified_with_nums.svg)
 
+The communication with POEs is accomplished by means of custom HLS blocks - for each protocol, one packetizer and one depacketizer. The packetizers (UP, TP) are responsible for inserting the ACCL message header into the stream, dividing up the stream into individual packets of pre-set lengths, and forwarding the packet to the respective protocol offload kernel. The depacketizers (UD, TD) perform the reverse operation. 
+
+The AXIS Switch (S0) provides a flexible interconnection in the data plane. S0 is programmable via AXI-mapped registers to implement any connectivity pattern between its inputs and outputs. Therefore, most data plane components are not arranged in a fixed datapath but rather the order in which data traverses different components is set at run-time by the control firmware.
+
+### CCLO Control Plane
+
+The control plane is shown below. Central to the control plane is a MicroBlaze (uB) processor. Firmware executing on the Microblaze generates commands to the various data plane blocks - the DMAs, (de)packetizers, switch, etc to assemble collectives. By implementing the control in uB (compiled from C code), the control logic can run at fairly high frequencies (up to 250 MHz) and can also be adapted and improved over time with relative ease, without requiring re-synthesis of the CCLO kernel. To minimize latency we employed a pipelined control plane architecture whereby most functional blocks are controlled through hardware FIFOs, decoupling control issuing from the execution. Less performance-sensitive blocks (AXI Stream switches, arithmetic) are controlled through an AXI bus using register-mapped interfaces.
+
+![schematic](images/drawing_ctrl_plane_simplified.svg)
+
+Interaction with the host is achieved through a call controller and shared mailbox memory (exchange memory module), which are accessible by both the uB and the host. The call controller is an HLS IP which implements the ap_ctrl_hs host-facing handshake protocol allowing the CCLO to appear to the Xilinx Run-Time (XRT) as a call-able Vitis kernel. The 4KB mailbox memory is accessible by both the host and Microblaze and enables large and stable configuration parameters to be set by the host and used by the firmware. 
 
 ## Kernel Interfaces
 The host communicates with the CCLO through a 8kB IO space which starts at ``BASEADDR`` and is implemented by the ``s_axi_control`` port.
@@ -58,7 +63,7 @@ The IO space is divided into 4 sections:
   ## Kernel Parameters (BASEADDR+0)
   first 4 32b int are for the ctrl of [hls_ip](https://www.xilinx.com/html_docs/xilinx2020_2/vitis_doc/managing_interface_synthesis.html#:~:text=r1%3D*((float*)%26u[…]ardware,-In%20this%20example) and then  15 x 32b integers for CCLO parameters each parameter is followed by a 32 bit integer that is reserved. 
 
-name            | size | offset | type                   
+name            | size | offset | type      
 ----------------|------|--------|-----------
  call_type      | 4    |0x010   |uint                       
  byte_count     | 4    |0x018   |uint                       

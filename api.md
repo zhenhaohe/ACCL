@@ -55,6 +55,8 @@ accl_inst.deinit()
 
 ## API Reference
 
+The ACCL drivers expose three distinct APIs to the user application: a `housekeeping` API which enables CCLO configuration and monitoring, a `primitives` API consisting of simple data movement operations (send, receive, copy, combine), and a `collectives` API which exposes the ACCL performance-optimized collectives. If users require specific collectives not supported by the ACCL collectives API, these can be assembled utilizing the primitives API in Python or C++.
+
 ### Primitives API
 
 ````

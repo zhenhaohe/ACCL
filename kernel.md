@@ -68,7 +68,6 @@ The control and argument register space is physically implemented as fixed-funct
 - Miscellaneous section, from address (0x0FF8 to 0x0FFF)
 
 ### Kernel Control, Parameter, and Status Registers
-------
 
 High-level calls to the ACCL API get translated by the ACCL driver into writes to this part of the register space. Some of the registers have a direct mapping to API function parameters.
 
@@ -114,7 +113,6 @@ nop             : 255
 ````
 
 ### RX Spare Buffer Configuration Space
-  -------
 The CCLO utilizes staging areas in external memory, called `RX spare buffers`, to keep data received from the network that the user has not yet claimed. These spare buffers are configured in an area of the register space starting at BASEADDR+0x800.
 
 The RX spare buffer configuration space consists of:
@@ -144,7 +142,6 @@ The RX spare buffer configuration space consists of:
  The RX buffers are all the storage available to the CCLO. Thus, during operation the total size of outstanding messages (sent but not yet received) should not exceed the total size of the spare buffers. In case this happens, the POEs will drop packets, resulting in throughput degradation for TCP and data loss for UDP.
 
 ### Communicators
--------
 A communicator defines the participants to a collective operation, called ranks, and identifies the local node. The communicator definition has the following structure:
   - number of ranks (``world_size``);
   - local rank, an index ( <= ``world_size`` -1 ) that indicates one of the entry in list of rank descriptors

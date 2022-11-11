@@ -46,7 +46,7 @@ def run_simulator(ranks: int, log_level: int, start_port: int, use_udp: bool, ke
     env = os.environ.copy()
     env['LD_LIBRARY_PATH'] = f"{os.environ['XILINX_VIVADO']}/lib/lnx64.o"
     env['LOG_LEVEL'] = str(log_level)
-    args = ['mpirun', '-np', str(ranks), '--tag-output', str(executable),
+    args = ['mpirun', '-np', str(ranks), str(executable),
             'udp' if use_udp else 'tcp', str(start_port), xsim_path_tail, "loopback" if kernel_loopback else ""]
     print(' '.join(args))
     with subprocess.Popen(args, cwd=cwd, env=env) as p:

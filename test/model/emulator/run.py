@@ -45,8 +45,11 @@ def build_executable():
 def run_emulator(ranks: int, log_level: int, start_port: int, use_udp: bool, kernel_loopback: bool):
     env = os.environ.copy()
     env['LOG_LEVEL'] = str(log_level)
-    args = ['mpirun', '-np', str(ranks), '--tag-output', str(executable),
+    # args = ['mpirun', '-np', str(ranks), '--tag-output', str(executable),
+    #         'udp' if use_udp else 'tcp', str(start_port), "loopback" if kernel_loopback else ""]
+    args = ['mpirun', '-np', str(ranks), '-prepend-rank', str(executable),
             'udp' if use_udp else 'tcp', str(start_port), "loopback" if kernel_loopback else ""]
+    
     print(' '.join(args))
     with subprocess.Popen(args, cwd=cwd, env=env,
                           stderr=subprocess.DEVNULL) as p:

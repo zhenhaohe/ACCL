@@ -284,6 +284,27 @@ class ACCLCommand{
         }
 
         /**
+         * @brief One-sided data transfer to a stream on a remote peer. 
+         * 
+         * @param len Number of array elements
+         * @param stream_id Stream ID at destination. IDs >=247 are reserved, call will not execute if set in this range
+         * @param dst_rank Rank ID of destination
+         * @param src_addr Source array address
+         */
+        void stream_put_nb(ap_uint<32> len,
+                        ap_uint<32> stream_id,
+                        ap_uint<32> dst_rank,
+                        ap_uint<64> src_addr
+        ){
+            if(stream_id > 246) return;
+            start_call(
+                ACCL_SEND, len, comm_adr, dst_rank, 0, stream_id, 
+                dpcfg_adr, cflags, sflags | 0x2, 
+                src_addr, 0, 0
+            );
+        }
+
+        /**
          * @brief Receive data send from a remote peer.
          * 
          * @param len Number of array elements
@@ -448,6 +469,24 @@ class ACCLCommand{
         }
 
         /**
+         * @brief Reduce data stream to stream
+         * 
+         * @param len Number of array elements
+         * @param root Rank ID of root node
+         * @param function Reduction function ID
+         */
+        void reduce_nb(ap_uint<32> len,
+                    ap_uint<32> root,
+                    ap_uint<32> function
+        ){
+            start_call(
+                ACCL_REDUCE, len, comm_adr, root, function, 0, 
+                dpcfg_adr, cflags, 3, 
+                0, 0, 0
+            );
+        }
+
+        /**
          * @brief Reduce-scatter data in the communicator. Equivalent to reduce followed by scatter
          * 
          * @param len Number of array elements
@@ -533,6 +572,69 @@ class ACCLData{
         stream_word pull(){
             return cclo2krnl.read();   
         }
+
+        /**
+         * @brief Read data from memory and push user data to the CCLO
+         * 
+         * @param data Data word (64B)
+         * @param dest Destination value (potentially used in routing)
+         */
+        void push_from_mem (int* src, int count, ap_uint<DEST_WIDTH> dest=0)
+        {
+            ap_uint<512> tmpword;
+            int word_count = 0;
+            int rd_count = count;
+            while(rd_count > 0){
+                #ifndef ACCL_SYNTHESIS
+                    std::cout << "push_from_mem"<<"\n";
+                #endif
+                //read 16 ints into a 512b vector
+                for(int i=0; (i<16) && (rd_count>0); i++){
+                    int inc = src[i+16*word_count];
+                    tmpword(i*32,(i+1)*32-1) = *reinterpret_cast<ap_uint<32>*>(&inc);
+                    rd_count--;
+                    #ifndef ACCL_SYNTHESIS
+                        std::cout <<"src:"<<inc<<" word:"<<tmpword(i*32,(i+1)*32-1)<<std::endl;
+                    #endif
+                }
+                //send the vector to cclo
+                push(tmpword, dest);
+                word_count++;
+            }
+        }
+
+        /**
+         * @brief Pull data from CCLO stream and store it in mem
+         * 
+         * @return stream_word
+         */
+        void pull_to_mem (int* dst, int count)
+        {
+            ap_uint<512> tmpword;
+            int word_count = 0;
+            int wr_count = count;
+            word_count = 0;
+            #ifndef ACCL_SYNTHESIS
+                std::cout << "pull_to_mem"<<"\n";
+            #endif
+            while(wr_count > 0){
+                //read vector from CCLO
+                tmpword = pull().data;
+                //read from the 512b vector into 16 ints
+                for(int i=0; (i<16) && (wr_count>0); i++){
+                    ap_uint<32> val = tmpword(i*32,(i+1)*32-1);
+                    dst[i+16*word_count] = *reinterpret_cast<int*>(&val);
+                    wr_count--;
+                    #ifndef ACCL_SYNTHESIS
+                        std::cout <<"word:"<<val<<" dst:"<<dst[i+16*word_count]<<std::endl;
+                    #endif
+                }
+                word_count++;
+            }
+        }
 };
 
 }
+
+
+

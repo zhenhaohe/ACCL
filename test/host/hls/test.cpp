@@ -77,6 +77,15 @@ std::unique_ptr<ACCL::ACCL> test_vadd_put(options_t options) {
                                                 options.rxbuf_size);
     }
 
+    if (options.udp == false){
+        debug("Starting connections to communicator ranks");
+        debug("Opening ports to communicator ranks");
+        accl->open_port();
+        MPI_Barrier(MPI_COMM_WORLD);
+        debug("Starting session to communicator ranks");
+        accl->open_con();
+    }
+
     accl->set_timeout(1e8);
     std::cout << "Host-side CCLO initialization finished" << std::endl;
 

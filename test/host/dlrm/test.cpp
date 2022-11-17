@@ -311,237 +311,28 @@ void test_dlrm_sim(ACCL::ACCL &accl, options_t &options, unsigned int numEmbedNo
     }
   }
 }
-
-// // Total node in the system: 2*numEmbedNodes+2
-// // Reduce node rank(0) to rank(numEmbedNodes) with root at rank(numEmbedNodes)
-// // Embedding node rank(numEmbedNodes+1) to rank(2*numEmbedNodes)
-// // Final aggregate node rank(2*numEmbedNodes+1)
-// // Global communicator contains rank(0) to rank(2*numEmbedNodes+1)
-// // Reduction communicator contains rank(0) to rank(numEmbedNodes)
-// void test_dlrm_kernels(ACCL::ACCL &accl, options_t &options, unsigned int numEmbedNodes) {
-//   std::cout << "Start dlrm_kernels test with " <<numEmbedNodes<<" embedding nodes..."<< std::endl;
-//   unsigned int count = options.count;
-//   unsigned int own_rank = rank;
-//   int errors = 0;
-//   if (size < 4) {
-//     std::cout<<"Error: Minimum group size is 4, current size:"<<size<<std::endl;
-//     return;
-//   }
-	
-// 	unsigned int reduce_comm_size = numEmbedNodes+1;
-//   unsigned int reduce_comm_root = numEmbedNodes;
-
-// 	unsigned int own_role;
-// 	if ((own_rank > numEmbedNodes) && (own_rank < 2*numEmbedNodes+1)){
-// 		own_role = DLRM_EMBED_ROLE;
-// 		std::cout<<"Rank:"<<own_rank<<" is DLRM_EMBED_ROLE"<<std::endl;
-// 	} else if (own_rank<reduce_comm_size){
-// 		if (own_rank == reduce_comm_root){
-// 			own_role = DLRM_REDUCE_ROOT_ROLE;
-// 			std::cout<<"Rank:"<<own_rank<<" is DLRM_REDUCE_ROOT_ROLE"<<std::endl;
-// 		} else {
-// 			own_role = DLRM_REDUCE_SLAVE_ROLE;
-// 			std::cout<<"Rank:"<<own_rank<<" is DLRM_REDUCE_SLAVE_ROLE"<<std::endl;
-// 		}
-// 	} else if (own_rank == 2*numEmbedNodes+1){
-// 		own_role = DLRM_AGG_ROLE;
-// 		std::cout<<"Rank:"<<own_rank<<" is DLRM_AGG_ROLE"<<std::endl;
-// 	} else{
-// 		std::cout<<"Error: rank not assigned to a role!"<<std::endl;
-//     return;
-// 	}
-	
-// 	// get the user kernel objects
-// 	xrt::kernel user_kernel;
-// 	if (own_role == DLRM_EMBED_ROLE)
-// 	{
-// 		user_kernel = xrt::kernel(device, device.get_xclbin_uuid(), "dlrm_embedding:{dlrm_embedding_0}",
-// 									xrt::kernel::cu_access_mode::exclusive);
-// 	} else if (own_role == DLRM_REDUCE_ROOT_ROLE)
-// 	{
-// 		user_kernel = xrt::kernel(device, device.get_xclbin_uuid(), "dlrm_reduce_root:{dlrm_reduce_root_0}",
-// 									xrt::kernel::cu_access_mode::exclusive);
-// 	} else if (own_role == DLRM_REDUCE_SLAVE_ROLE)
-// 	{
-// 		user_kernel = xrt::kernel(device, device.get_xclbin_uuid(), "dlrm_reduce_root:{dlrm_reduce_slave_0}",
-// 									xrt::kernel::cu_access_mode::exclusive);
-// 	} else if (own_role == DLRM_AGG_ROLE)
-// 	{
-// 		user_kernel = xrt::kernel(device, device.get_xclbin_uuid(), "dlrm_agg:{dlrm_agg_0}",
-// 									xrt::kernel::cu_access_mode::exclusive);
-// 	}
-	
-	
   
-//   // create reduce group from rank 0 to rank numEmbedNodes
-// 	auto group = accl.get_comm_group(GLOBAL_COMM);
-//   std::vector<rank_t> reduce_group;
-//   communicatorId reduce_comm;
-//   if (own_role == DLRM_REDUCE_ROOT_ROLE || own_role == DLRM_REDUCE_SLAVE_ROLE)
-//   {
-//     for (unsigned int i = 0; i < reduce_comm_size; i++)
-//     {
-//       reduce_group.push_back(group[i]);
-//     }
-//     reduce_comm = accl.create_communicator(reduce_group, own_rank);
-//   }
-//   debug(accl->dump_communicator());
 
-// 	// create buffers
-//   std::unique_ptr<float> host_embed_buf(new float[count]);
-//   auto embedding_buf = accl.create_buffer(host_embed_buf, count, dataType::float32);
-//   for (unsigned int i = 0; i < count; i++) {
-//     host_embed_buf[i] = i;
-//   }
-
-//   std::unique_ptr<float> host_op_buf(new float[count]);
-//   auto op_buf = accl.create_buffer<float>(host_op_buf, count, dataType::float32);
-//   for (unsigned int i = 0; i < count; i++) {
-//     host_op_buf[i] = 0;
-//   }
-
-//   auto res_buf = accl.create_buffer<float>(count, dataType::float32);
-
-//   MPI_Barrier(MPI_COMM_WORLD);
-//   // Send operation for embedding nodes
-//   if (own_role == DLRM_EMBED_ROLE)
-//   {
-//     unsigned int dst_rank = own_rank - reduce_comm_size;
-//     auto run = dlrm_embedding(*embedding_buf, count, dst_rank, 0, GLOBAL_COMM);
-//   }
-//   // recv and reduce operation for reduce nodes
-//   else if (own_rank<reduce_comm_size)
-//   {
-//     if (own_rank != reduce_comm_root)
-//     {
-//       unsigned int src_rank = own_rank + reduce_comm_size;
-//       accl.recv(*op_buf, count, src_rank, 0, GLOBAL_COMM, true); // to_fpga flag true
-//       accl.reduce(*op_buf, *res_buf, count, reduce_comm_root, ACCL::reduceFunction::SUM, true, true, reduce_comm); // from_fpga and to_fpga flag true
-//     } else {
-//       accl.reduce(*op_buf, *res_buf, count, reduce_comm_root, ACCL::reduceFunction::SUM, false, true, reduce_comm); // to_fpga flag true
-//       accl.send(*res_buf, count, 2*numEmbedNodes+1, 0, GLOBAL_COMM, true); // from_fpga flag true
-//     }
-//   }
-//   // last aggregation node
-//   else{
-//     unsigned int src_rank = numEmbedNodes;
-//     accl.recv(*res_buf, count, src_rank, 0, GLOBAL_COMM); 
-//   }
-  
-//   if (own_rank == 2*numEmbedNodes+1)
-//   {
-//     for (unsigned int i = 0; i < count; ++i) {
-//       float res = (*res_buf)[i];
-//       float ref = (float)i*numEmbedNodes;
-//       if (res != ref) {
-//         // std::cout << std::to_string(i + 1) + "th item is incorrect! (" +
-//         //                 std::to_string(res) + " != " + std::to_string(ref) + ")"
-//         //           << std::endl;
-//         errors += 1;
-//       }
-//     }
-//     if (errors > 0) {
-//       std::cout << std::to_string(errors) + " errors!" << std::endl;
-//       failed_tests++;
-//     } else {
-//       std::cout << "Test is successful!" << std::endl;
-//     }
-//   }
-// }
-
-void start_test(options_t options) {
+void start_test_sim(options_t options) {
   std::vector<rank_t> ranks = {};
   failed_tests = 0;
   skipped_tests = 0;
 
 	std::vector<std::string> ipList;
-	if (options.hardware)
-	{
-		std::ifstream myfile;
-		myfile.open(options.fpgaIP);
-		if(!myfile.is_open()) {
-				perror("Error open fpgaIP file");
-				exit(EXIT_FAILURE);
-		}
-		for (int i = 0; i < size; ++i) {
-			std::string ip;
-			getline(myfile, ip);
-			ipList.push_back(ip);
-			rank_t new_rank = {ip, options.start_port + i, i, options.rxbuf_size};
-			ranks.emplace_back(new_rank);
-  	}
-	} else {
-    for (int i = 0; i < size; ++i) {
-        rank_t new_rank = {"127.0.0.1", options.start_port + i, i, options.rxbuf_size};
-        ranks.emplace_back(new_rank);
-    }
-	}
-
+  for (int i = 0; i < size; ++i) {
+      rank_t new_rank = {"127.0.0.1", options.start_port + i, i, options.rxbuf_size};
+      ranks.emplace_back(new_rank);
+  }
+	
   std::unique_ptr<ACCL::ACCL> accl;
 
   xrt::device device;
 
-  if (options.hardware) {
-    device = xrt::device(options.device_index);
-  }
+  accl = std::make_unique<ACCL::ACCL>(ranks, rank, options.start_port, device,
+                                      options.udp ? networkProtocol::UDP
+                                                  : networkProtocol::TCP,
+                                      16, options.rxbuf_size);
 
-  if (options.hardware) {
-    std::string cclo_id;
-    cclo_id = "0";
-    auto xclbin_uuid = device.load_xclbin(options.xclbin);
-    auto cclo_ip = xrt::ip(device, xclbin_uuid,
-                           "ccl_offload:{ccl_offload_" + cclo_id + "}");
-    auto hostctrl_ip =
-        xrt::kernel(device, xclbin_uuid, "hostctrl:{hostctrl_" + cclo_id + "_0}",
-                    xrt::kernel::cu_access_mode::exclusive);
-
-    int devicemem;
-    std::vector<int> rxbufmem;
-    int networkmem;
-    devicemem = 0;
-    for (int i=0; i<(int)options.num_rxbufmem; i++)
-    {
-      if(i<5){
-        rxbufmem.push_back(i+1);
-      }
-    }
-    networkmem = 6;
-    
-    if (options.tcp)
-		{
-			std::cout << "Configure TCP Network Kernel" << std::endl;
-			auto network_krnl = xrt::kernel(device, xclbin_uuid, "network_krnl:{network_krnl_0}",
-                    xrt::kernel::cu_access_mode::exclusive);
-      
-      uint localFPGAIP = ip_encode(ipList[rank]);
-			std::cout << "rank: "<< rank << " FPGA IP: "<<std::hex << localFPGAIP << std::endl;
-
-      auto tx_buf_network = xrt::bo (device, 8*1024*1024*sizeof(int8_t), networkmem);
-      tx_buf_network.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-      auto rx_buf_network = xrt::bo (device, 8*1024*1024*sizeof(int8_t), networkmem);
-      rx_buf_network.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-      network_krnl(localFPGAIP, uint(rank), localFPGAIP, tx_buf_network, rx_buf_network);
-
-      uint32_t ip_reg = network_krnl.read_register(0x010);
-      uint32_t board_reg = network_krnl.read_register(0x018);
-      uint64_t ptr0 = network_krnl.read_register(0x028);
-      uint64_t ptr1 = network_krnl.read_register(0x034);
-      std::cout<< std::hex << "ip_reg: "<< ip_reg << " board_reg IP: " << board_reg <<" tx_ptr:"<<ptr0<<" rx_ptr:"<<ptr1<<std::endl;
-		}
-
-		MPI_Barrier(MPI_COMM_WORLD);
-
-    accl = std::make_unique<ACCL::ACCL>(
-        ranks, rank, device, cclo_ip, hostctrl_ip, devicemem, rxbufmem,
-        options.udp ? networkProtocol::UDP : networkProtocol::TCP,
-        16, options.rxbuf_size);
-  } else {
-    accl = std::make_unique<ACCL::ACCL>(ranks, rank, options.start_port, device,
-                                        options.udp ? networkProtocol::UDP
-                                                    : networkProtocol::TCP,
-                                        16, options.rxbuf_size);
-  }
 
   if (options.tcp){
     debug("Starting connections to communicator ranks");
@@ -572,6 +363,298 @@ void start_test(options_t options) {
   }
 }
 
+
+// Total node in the system: 2*numEmbedNodes+2
+// Reduce node rank(0) to rank(numEmbedNodes) with root at rank(numEmbedNodes)
+// Embedding node rank(numEmbedNodes+1) to rank(2*numEmbedNodes)
+// Final aggregate node rank(2*numEmbedNodes+1)
+// Global communicator contains rank(0) to rank(2*numEmbedNodes+1)
+// Reduction communicator contains rank(0) to rank(numEmbedNodes)
+
+void start_test(options_t options) {
+  std::vector<rank_t> ranks = {};
+  failed_tests = 0;
+  skipped_tests = 0;
+
+	std::vector<std::string> ipList;
+
+  std::ifstream myfile;
+  myfile.open(options.fpgaIP);
+  if(!myfile.is_open()) {
+      perror("Error open fpgaIP file");
+      exit(EXIT_FAILURE);
+  }
+  for (int i = 0; i < size; ++i) {
+    std::string ip;
+    getline(myfile, ip);
+    ipList.push_back(ip);
+    rank_t new_rank = {ip, options.start_port + i, i, options.rxbuf_size};
+    ranks.emplace_back(new_rank);
+  }
+
+  unsigned int count = options.count;
+  int errors = 0;
+  if (size < 4) {
+    std::cout<<"Error: Minimum group size is 4, current size:"<<size<<std::endl;
+    return;
+  }
+
+  // figure out the local role
+  unsigned int numEmbedNodes = (size-2)/2;
+  unsigned int reduce_comm_size = numEmbedNodes+1;
+  unsigned int reduce_comm_root = numEmbedNodes;
+  std::cout << "Start dlrm_kernels hardware test with " <<numEmbedNodes<<" embedding nodes..."<< std::endl;
+
+  unsigned int own_rank = rank;
+	unsigned int own_role;
+  std::string role_str;
+	if ((own_rank > numEmbedNodes) && (own_rank < 2*numEmbedNodes+1)){
+		own_role = DLRM_EMBED_ROLE;
+    role_str="dlrm_embedding";
+		std::cout<<"Rank:"<<own_rank<<" is DLRM_EMBED_ROLE"<<std::endl;
+	} else if (own_rank<reduce_comm_size){
+		if (own_rank == reduce_comm_root){
+			own_role = DLRM_REDUCE_ROOT_ROLE;
+      role_str="dlrm_reduce_root";
+			std::cout<<"Rank:"<<own_rank<<" is DLRM_REDUCE_ROOT_ROLE"<<std::endl;
+		} else {
+			own_role = DLRM_REDUCE_SLAVE_ROLE;
+      role_str="dlrm_reduce_slave";
+			std::cout<<"Rank:"<<own_rank<<" is DLRM_REDUCE_SLAVE_ROLE"<<std::endl;
+		}
+	} else if (own_rank == 2*numEmbedNodes+1){
+		own_role = DLRM_AGG_ROLE;
+    role_str="dlrm_agg";
+		std::cout<<"Rank:"<<own_rank<<" is DLRM_AGG_ROLE"<<std::endl;
+	} else{
+		std::cout<<"Error: rank not assigned to a role!"<<std::endl;
+    return;
+	}
+
+  std::unique_ptr<ACCL::ACCL> accl;
+
+  xrt::device device;
+
+  device = xrt::device(options.device_index);
+  
+  std::string cclo_id;
+  cclo_id = "0";
+  
+  std::string xclbin_str = options.xclbin+"/link_tcp_"+role_str+"_eth_0_debug_none_xilinx_u55c_gen3x16_xdma_3_202210_1/ccl_offload.xclbin";
+  std::cout<<"XCLBIN:"<<xclbin_str<<std::endl;
+  auto xclbin_uuid = device.load_xclbin(xclbin_str);
+  auto cclo_ip = xrt::ip(device, xclbin_uuid,
+                          "ccl_offload:{ccl_offload_" + cclo_id + "}");
+  auto hostctrl_ip =
+      xrt::kernel(device, xclbin_uuid, "hostctrl:{hostctrl_" + cclo_id + "_0}",
+                  xrt::kernel::cu_access_mode::exclusive);
+
+  int devicemem;
+  std::vector<int> rxbufmem;
+  int networkmem;
+  devicemem = 0;
+  for (int i=0; i<(int)options.num_rxbufmem; i++)
+  {
+    if(i<5){
+      rxbufmem.push_back(i+1);
+    }
+  }
+  networkmem = 6;
+  
+  if (options.tcp)
+  {
+    std::cout << "Configure TCP Network Kernel" << std::endl;
+    auto network_krnl = xrt::kernel(device, xclbin_uuid, "network_krnl:{network_krnl_0}",
+                  xrt::kernel::cu_access_mode::exclusive);
+    
+    uint localFPGAIP = ip_encode(ipList[rank]);
+    std::cout << "rank: "<< rank << " FPGA IP: "<<std::hex << localFPGAIP << std::endl;
+
+    auto tx_buf_network = xrt::bo (device, 8*1024*1024*sizeof(int8_t), networkmem);
+    tx_buf_network.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+    auto rx_buf_network = xrt::bo (device, 8*1024*1024*sizeof(int8_t), networkmem);
+    rx_buf_network.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    network_krnl(localFPGAIP, uint(rank), localFPGAIP, tx_buf_network, rx_buf_network);
+
+    uint32_t ip_reg = network_krnl.read_register(0x010);
+    uint32_t board_reg = network_krnl.read_register(0x018);
+    uint64_t ptr0 = network_krnl.read_register(0x028);
+    uint64_t ptr1 = network_krnl.read_register(0x034);
+    std::cout<< std::hex << "ip_reg: "<< ip_reg << " board_reg IP: " << board_reg <<" tx_ptr:"<<ptr0<<" rx_ptr:"<<ptr1<<std::endl;
+  }
+
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  accl = std::make_unique<ACCL::ACCL>(
+      ranks, rank, device, cclo_ip, hostctrl_ip, devicemem, rxbufmem,
+      options.udp ? networkProtocol::UDP : networkProtocol::TCP,
+      16, options.rxbuf_size);
+  
+  accl->set_timeout(1e12);
+
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  if (options.tcp){
+    debug("Starting connections to communicator ranks");
+    debug("Opening ports to communicator ranks");
+    accl->open_port();
+    MPI_Barrier(MPI_COMM_WORLD);
+    debug("Starting session to communicator ranks");
+    accl->open_con();
+    debug(accl->dump_communicator());
+  }
+
+  accl->set_timeout(1e6);
+
+  std::string kernel_str=role_str+":{"+role_str+"_0_0}";
+  std::cout<<"User kernel:"<<kernel_str<<std::endl;
+  auto user_kernel = xrt::kernel(device, device.get_xclbin_uuid(), kernel_str,
+                    xrt::kernel::cu_access_mode::exclusive);
+
+	MPI_Barrier(MPI_COMM_WORLD);
+	  
+  // create reduce group from rank 0 to rank numEmbedNodes
+	auto group = accl->get_comm_group(GLOBAL_COMM);
+  std::vector<rank_t> reduce_group;
+  communicatorId REDUCE_COMM;
+  if (own_role == DLRM_REDUCE_ROOT_ROLE || own_role == DLRM_REDUCE_SLAVE_ROLE)
+  {
+    for (unsigned int i = 0; i < reduce_comm_size; i++)
+    {
+      reduce_group.push_back(group[i]);
+    }
+    REDUCE_COMM = accl->create_communicator(reduce_group, own_rank);
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+  debug(accl->dump_communicator());
+
+	// create buffers
+  int host_embed_buf[options.count], host_op_buf[options.count], host_res_buf[options.count];
+
+  for (unsigned int i = 0; i < count; i++) {
+    host_embed_buf[i] = (int)i;
+  }
+	
+  for (unsigned int i = 0; i < count; i++) {
+    host_op_buf[i] = 0;
+  }
+
+  for (unsigned int i = 0; i < count; i++) {
+    host_res_buf[i] = 0;
+  }
+
+  std::cout<<"host_embed_buf:"<<host_embed_buf<<" host_op_buf:"<<host_op_buf<<" host_res_buf:"<<host_res_buf<<std::endl;
+
+  xrt::bo embed_buf_bo;
+  xrt::bo op_buf_bo;
+  xrt::bo res_buf_bo;
+
+  if (own_role == DLRM_EMBED_ROLE){
+    embed_buf_bo = xrt::bo(device, sizeof(int)*options.count, user_kernel.group_id(0));
+    embed_buf_bo.write(host_embed_buf);
+    embed_buf_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+  } else if (own_role == DLRM_REDUCE_ROOT_ROLE || own_role == DLRM_REDUCE_SLAVE_ROLE)
+  {
+    op_buf_bo = xrt::bo(device, sizeof(int)*options.count, user_kernel.group_id(0));
+    op_buf_bo.write(host_op_buf);
+    op_buf_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    res_buf_bo = xrt::bo(device, sizeof(int)*options.count, user_kernel.group_id(1));
+    res_buf_bo.write(host_res_buf);
+    res_buf_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+  } else if (own_role == DLRM_AGG_ROLE)
+  {
+    res_buf_bo = xrt::bo(device, sizeof(int)*options.count, user_kernel.group_id(0));
+    res_buf_bo.write(host_res_buf);
+    res_buf_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+  }
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  // Embedding nodes
+  if (own_role == DLRM_EMBED_ROLE)
+  {
+    unsigned int dst_rank = own_rank - reduce_comm_size;
+    auto run = user_kernel(embed_buf_bo, count, dst_rank, accl->get_communicator_addr(GLOBAL_COMM), accl->get_arithmetic_config_addr({dataType::int32, dataType::int32}));
+    run.wait();
+  }
+  // recv and reduce operation for reduce nodes
+  else if (own_role == DLRM_REDUCE_ROOT_ROLE)
+  {
+    unsigned int destination = 2*numEmbedNodes+1;
+    auto run = user_kernel(op_buf_bo, res_buf_bo, count, destination, reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, accl->get_communicator_addr(GLOBAL_COMM), accl->get_communicator_addr(REDUCE_COMM), accl->get_arithmetic_config_addr({dataType::int32, dataType::int32}));
+    run.wait();
+  } else if (own_role == DLRM_REDUCE_SLAVE_ROLE)
+  {
+    auto run = user_kernel(op_buf_bo, res_buf_bo, count, reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, accl->get_communicator_addr(REDUCE_COMM), accl->get_arithmetic_config_addr({dataType::int32, dataType::int32}));
+    run.wait();
+  } else if (own_role == DLRM_AGG_ROLE)
+  {
+    auto run = user_kernel(res_buf_bo, count);
+    run.wait();
+  }
+  
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  if (own_role == DLRM_REDUCE_SLAVE_ROLE)
+  {
+    op_buf_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+    op_buf_bo.read(host_op_buf);
+
+    for (unsigned int i = 0; i < count; ++i) {
+      int res = (host_op_buf)[i];
+      int ref = (int)i;
+      if (res != ref) {
+        // std::cout << std::to_string(i + 1) + "th item is incorrect! (" +
+        //                 std::to_string(res) + " != " + std::to_string(ref) + ")"
+        //           << std::endl;
+        errors += 1;
+      }
+    }
+    if (errors > 0) {
+      std::cout << std::to_string(errors) + " errors!" << std::endl;
+      failed_tests++;
+    } else {
+      std::cout << "Test is successful!" << std::endl;
+    }
+  }
+  else if (own_role == DLRM_AGG_ROLE || own_role == DLRM_REDUCE_ROOT_ROLE)
+  {
+    res_buf_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+    res_buf_bo.read(host_res_buf);
+
+    for (unsigned int i = 0; i < count; ++i) {
+      int res = (host_res_buf)[i];
+      int ref = (int)i*numEmbedNodes;
+      if (res != ref) {
+        std::cout << std::to_string(i + 1) + "th item is incorrect! (" +
+                        std::to_string(res) + " != " + std::to_string(ref) + ")"
+                  << std::endl;
+        errors += 1;
+      }
+    }
+    if (errors > 0) {
+      std::cout << std::to_string(errors) + " errors!" << std::endl;
+      failed_tests++;
+    } else {
+      std::cout << "Test is successful!" << std::endl;
+    }
+  }
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  std::cout << failed_tests << " tests failed on rank " << rank;
+  if (skipped_tests > 0) {
+    std::cout << " (skipped " << skipped_tests << " tests)";
+  }
+  std::cout << "." << std::endl;
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  if (failed_tests > 1) {
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+}
+
+
 bool xrt_simulator_ready(const options_t &opts) {
   if (opts.hardware) {
     return true;
@@ -599,14 +682,14 @@ options_t parse_options(int argc, char *argv[]) {
                                             false, 1, "positive integer");
     cmd.add(nruns_arg);
     TCLAP::ValueArg<uint16_t> start_port_arg(
-        "s", "start-port", "Start of range of ports usable for sim", false, 5500,
+        "s", "start-port", "Start of range of ports usable for sim", false, 5005,
         "positive integer");
     cmd.add(start_port_arg);
     TCLAP::ValueArg<uint32_t> count_arg("c", "count", "How many element per buffer",
                                         false, 16, "positive integer");
     cmd.add(count_arg);
     TCLAP::ValueArg<uint16_t> bufsize_arg("b", "rxbuf-size",
-                                          "How many KB per RX buffer", false, 1,
+                                          "How many KB per RX buffer", false, 4096,
                                           "positive integer");
     cmd.add(bufsize_arg);
     TCLAP::ValueArg<uint32_t> seg_arg("g", "max_segment_size",
@@ -621,13 +704,13 @@ options_t parse_options(int argc, char *argv[]) {
                                           "Test mode, by default run all the collective tests", false, 0,
                                           "integer");
     cmd.add(test_mode_arg);
-    TCLAP::SwitchArg debug_arg("d", "debug", "Enable debug mode", cmd, true);
+    TCLAP::SwitchArg debug_arg("d", "debug", "Enable debug mode", cmd, false);
     TCLAP::SwitchArg hardware_arg("f", "hardware", "enable hardware mode", cmd,
                                   false);
     TCLAP::SwitchArg axis3_arg("a", "axis3", "Use axis3 hardware setup", cmd,
                               false);
     TCLAP::SwitchArg udp_arg("u", "udp", "Use UDP hardware setup", cmd, false);
-    TCLAP::SwitchArg tcp_arg("t", "tcp", "Use TCP hardware setup", cmd, true);
+    TCLAP::SwitchArg tcp_arg("t", "tcp", "Use TCP hardware setup", cmd, false);
     TCLAP::SwitchArg hwbench_arg("z", "hwbench", "Enable hwbench, the maximum CCLO commands (~20) is limited by the FIFO depth to the bench kernel", cmd, false);
     TCLAP::SwitchArg userkernel_arg("k", "userkernel", "Enable user kernel(by default vadd kernel)", cmd, false);
     TCLAP::ValueArg<std::string> xclbin_arg(
@@ -666,7 +749,7 @@ options_t parse_options(int argc, char *argv[]) {
 			}
       if ((axis3_arg.getValue() || udp_arg.getValue() || tcp_arg.getValue()) == false) {
         throw std::runtime_error("When using hardware, specify either axis3 or tcp or"
-                                 "udp mode.");
+                                 " udp mode.");
       }
       if (hwbench_arg.getValue() && hardware_arg.getValue()==false)
       {
@@ -727,8 +810,12 @@ int main(int argc, char *argv[]) {
           << std::endl;
     std::cout << stream.str();
 
-    start_test(options);
-
+    if(options.hardware){
+      start_test(options);
+    } else {
+      start_test_sim(options);
+    }
+    
     MPI_Finalize();
     return 0;
 }

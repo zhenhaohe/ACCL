@@ -52,6 +52,7 @@ void dlrm_embedding(
     //read data from src
     //and push the result into the CCLO stream
     data.push_from_mem(src, count, 0);
+    data.tie_off_cclo2krnl();
     #ifndef ACCL_SYNTHESIS
         std::cout << "dlrm_embedding: stream_put count=" << count << " destination=" << destination << "\n";
     #endif

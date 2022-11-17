@@ -44,6 +44,7 @@ void dlrm_agg(
     accl_hls::ACCLData data(data_to_cclo, data_from_cclo);
     //pull data from CCLO and write it to dst
     data.pull_to_mem(dst, count);
+    data.tie_off_krnl2cclo();
     #ifndef ACCL_SYNTHESIS
         std::cout << "dlrm_agg: finish" << "\n";
     #endif

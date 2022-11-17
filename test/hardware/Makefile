@@ -28,6 +28,9 @@ MODE ?= tcp
 FREQUENCY = 250
 CCLO_XO = ../../kernels/cclo/ccl_offload.xo
 CCLO_MB_DEBUG_LEVEL ?= 0
+CCLO_EN_DMA ?= 1
+CCLO_EN_ARITH ?= 1
+CCLO_EN_COMPRESS ?= 1
 
 VNX=xup_vitis_network_example
 NETLAYERDIR = $(VNX)/NetLayers
@@ -53,6 +56,10 @@ SUM_XO=../../kernels/plugins/reduce_ops/reduce_ops.xo
 COMPRESSION_XO=../../kernels/plugins/hp_compression/hp_compression.xo
 LOOPBACK_XO=../../kernels/plugins/loopback/loopback.xo
 VADD_XO=../../kernels/plugins/vadd_put/vadd_put.xo
+DLRM_EMBEDDING_XO=../../kernels/plugins/dlrm/dlrm_embedding/dlrm_embedding.xo
+DLRM_REDUCE_SLAVE_XO=../../kernels/plugins/dlrm/dlrm_reduce_slave/dlrm_reduce_slave.xo
+DLRM_REDUCE_ROOT_XO=../../kernels/plugins/dlrm/dlrm_reduce_root/dlrm_reduce_root.xo
+DLRM_AGG_XO=../../kernels/plugins/dlrm/dlrm_agg/dlrm_agg.xo
 
 ARITHMETIC_XO = $(SUM_XO) $(COMPRESSION_XO)
 
@@ -131,6 +138,54 @@ else ifeq (tcp, $(MODE))
 	CONFIG += --user_ip_repo_paths Vitis_with_100Gbps_TCP-IP/build/fpga-network-stack/iprepo
 	CCLO_STACK_TYPE = TCP
 	CCLO_EN_FANIN = 1
+else ifeq (tcp_dlrm_embedding, $(MODE))
+	CMAC_TCP_XO=Vitis_with_100Gbps_TCP-IP/_x.hw.$(XSA)/cmac_krnl.xo
+	NET_XO = $(TCP_XO) $(CMAC_TCP_XO)
+	OTHER_XO = $(LOOPBACK_XO) $(DLRM_EMBEDDING_XO)
+	ARITHMETIC_XO = $(SUM_XO)
+	CONFIG += --advanced.param compiler.userPostSysLinkOverlayTcl=$(shell pwd)/Vitis_with_100Gbps_TCP-IP/scripts/post_sys_link.tcl
+	CONFIG += --user_ip_repo_paths Vitis_with_100Gbps_TCP-IP/build/fpga-network-stack/iprepo
+	CCLO_STACK_TYPE = TCP
+	CCLO_EN_FANIN = 1
+	CCLO_EN_DMA = 1
+	CCLO_EN_ARITH = 1
+	CCLO_EN_COMPRESS = 0
+else ifeq (tcp_dlrm_reduce_slave, $(MODE))
+	CMAC_TCP_XO=Vitis_with_100Gbps_TCP-IP/_x.hw.$(XSA)/cmac_krnl.xo
+	NET_XO = $(TCP_XO) $(CMAC_TCP_XO)
+	OTHER_XO = $(LOOPBACK_XO) $(DLRM_REDUCE_SLAVE_XO)
+	ARITHMETIC_XO = $(SUM_XO)
+	CONFIG += --advanced.param compiler.userPostSysLinkOverlayTcl=$(shell pwd)/Vitis_with_100Gbps_TCP-IP/scripts/post_sys_link.tcl
+	CONFIG += --user_ip_repo_paths Vitis_with_100Gbps_TCP-IP/build/fpga-network-stack/iprepo
+	CCLO_STACK_TYPE = TCP
+	CCLO_EN_FANIN = 1
+	CCLO_EN_DMA = 1
+	CCLO_EN_ARITH = 1
+	CCLO_EN_COMPRESS = 0
+else ifeq (tcp_dlrm_reduce_root, $(MODE))
+	CMAC_TCP_XO=Vitis_with_100Gbps_TCP-IP/_x.hw.$(XSA)/cmac_krnl.xo
+	NET_XO = $(TCP_XO) $(CMAC_TCP_XO)
+	OTHER_XO = $(LOOPBACK_XO) $(DLRM_REDUCE_ROOT_XO)
+	ARITHMETIC_XO = $(SUM_XO)
+	CONFIG += --advanced.param compiler.userPostSysLinkOverlayTcl=$(shell pwd)/Vitis_with_100Gbps_TCP-IP/scripts/post_sys_link.tcl
+	CONFIG += --user_ip_repo_paths Vitis_with_100Gbps_TCP-IP/build/fpga-network-stack/iprepo
+	CCLO_STACK_TYPE = TCP
+	CCLO_EN_FANIN = 1
+	CCLO_EN_DMA = 1
+	CCLO_EN_ARITH = 1
+	CCLO_EN_COMPRESS = 0
+else ifeq (tcp_dlrm_agg, $(MODE))
+	CMAC_TCP_XO=Vitis_with_100Gbps_TCP-IP/_x.hw.$(XSA)/cmac_krnl.xo
+	NET_XO = $(TCP_XO) $(CMAC_TCP_XO)
+	OTHER_XO = $(LOOPBACK_XO) $(DLRM_AGG_XO)
+	ARITHMETIC_XO = $(SUM_XO)
+	CONFIG += --advanced.param compiler.userPostSysLinkOverlayTcl=$(shell pwd)/Vitis_with_100Gbps_TCP-IP/scripts/post_sys_link.tcl
+	CONFIG += --user_ip_repo_paths Vitis_with_100Gbps_TCP-IP/build/fpga-network-stack/iprepo
+	CCLO_STACK_TYPE = TCP
+	CCLO_EN_FANIN = 1
+	CCLO_EN_DMA = 1
+	CCLO_EN_ARITH = 1
+	CCLO_EN_COMPRESS = 0
 else
 	$(error Unsupported MODE)
 endif
@@ -168,11 +223,11 @@ $(TCP_XO): tcp_stack_ips
 tcp_stack_ips:
 	git submodule update --init --recursive Vitis_with_100Gbps_TCP-IP
 	mkdir -p Vitis_with_100Gbps_TCP-IP/build
-	cmake -S Vitis_with_100Gbps_TCP-IP/ -BVitis_with_100Gbps_TCP-IP/build/ -DFDEV_NAME=$(BOARD) -DVIVADO_HLS_ROOT_DIR=$(TCP_HLS_ROOTDIR) -DVIVADO_ROOT_DIR=$(TCP_VIVADO_ROOTDIR) -DTCP_STACK_EN=1 -DTCP_STACK_RX_DDR_BYPASS_EN=1 -DDTCP_STACK_WINDOW_SCALING_EN=0
-	$(MAKE) -C Vitis_with_100Gbps_TCP-IP/build installip
+	cmake -S Vitis_with_100Gbps_TCP-IP/ -BVitis_with_100Gbps_TCP-IP/build/ -DFDEV_NAME=$(BOARD) -DVIVADO_HLS_ROOT_DIR=$(TCP_HLS_ROOTDIR) -DVIVADO_ROOT_DIR=$(TCP_VIVADO_ROOTDIR) -DTCP_STACK_EN=1 -DTCP_STACK_RX_DDR_BYPASS_EN=1 -DTCP_STACK_WINDOW_SCALING_EN=0
+	# $(MAKE) -C Vitis_with_100Gbps_TCP-IP/build installip
 
 $(XCLBIN): $(NET_XO) $(CONFIGFILE)
-	$(MAKE) -C ../../kernels/cclo PLATFORM=$(PLATFORM) STACK_TYPE=$(CCLO_STACK_TYPE) EN_FANIN=$(CCLO_EN_FANIN) MB_DEBUG_LEVEL=$(CCLO_MB_DEBUG_LEVEL)
+	$(MAKE) -C ../../kernels/cclo PLATFORM=$(PLATFORM) STACK_TYPE=$(CCLO_STACK_TYPE) EN_FANIN=$(CCLO_EN_FANIN) MB_DEBUG_LEVEL=$(CCLO_MB_DEBUG_LEVEL) EN_ARITH=$(CCLO_EN_ARITH) EN_COMPRESS=$(CCLO_EN_COMPRESS) EN_DMA=$(CCLO_EN_DMA)
 	$(MAKE) -C ../../kernels/plugins PLATFORM=$(PLATFORM) DEBUG=$(DEBUG)
 	v++ --link --platform $(PLATFORM) --kernel_frequency $(FREQUENCY) --save-temps --temp_dir $(BUILD_DIR) $(CONFIG) -o $@ $(CCLO_XO) $(HOSTCTRL_XO) $(CLIENT_ARB_XO) $(ARITHMETIC_XO) $(NET_XO) $(OTHER_XO)
 

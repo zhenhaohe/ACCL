@@ -573,6 +573,29 @@ class ACCLData{
             return cclo2krnl.read();   
         }
 
+        void tie_off_krnl2cclo()
+        {
+            STREAM<ap_uint<512> > tmp_stream;
+            if (!tmp_stream.empty())
+            {
+                ap_uint<512> tmpword = tmp_stream.read();
+                stream_word tmp;
+                tmp.data = tmpword;
+                tmp.dest = 0;
+                tmp.last = 1;
+                tmp.keep = -1;
+                krnl2cclo.write(tmp);
+            }
+        }
+
+        void tie_off_cclo2krnl()
+        {
+            if (!cclo2krnl.empty())
+            {
+                stream_word tmpword = cclo2krnl.read();   
+            }
+        }
+
         /**
          * @brief Read data from memory and push user data to the CCLO
          * 
@@ -585,17 +608,17 @@ class ACCLData{
             int word_count = 0;
             int rd_count = count;
             while(rd_count > 0){
-                #ifndef ACCL_SYNTHESIS
-                    std::cout << "push_from_mem"<<"\n";
-                #endif
+                // #ifndef ACCL_SYNTHESIS
+                //     std::cout << "push_from_mem"<<"\n";
+                // #endif
                 //read 16 ints into a 512b vector
                 for(int i=0; (i<16) && (rd_count>0); i++){
                     int inc = src[i+16*word_count];
-                    tmpword(i*32,(i+1)*32-1) = *reinterpret_cast<ap_uint<32>*>(&inc);
+                    tmpword((i+1)*32-1,i*32) = *reinterpret_cast<ap_uint<32>*>(&inc);
                     rd_count--;
-                    #ifndef ACCL_SYNTHESIS
-                        std::cout <<"src:"<<inc<<" word:"<<tmpword(i*32,(i+1)*32-1)<<std::endl;
-                    #endif
+                    // #ifndef ACCL_SYNTHESIS
+                    //     std::cout <<"src:"<<inc<<" word:"<<tmpword((i+1)*32-1,i*32)<<std::endl;
+                    // #endif
                 }
                 //send the vector to cclo
                 push(tmpword, dest);
@@ -614,20 +637,20 @@ class ACCLData{
             int word_count = 0;
             int wr_count = count;
             word_count = 0;
-            #ifndef ACCL_SYNTHESIS
-                std::cout << "pull_to_mem"<<"\n";
-            #endif
+            // #ifndef ACCL_SYNTHESIS
+            //     std::cout << "pull_to_mem"<<"\n";
+            // #endif
             while(wr_count > 0){
                 //read vector from CCLO
                 tmpword = pull().data;
                 //read from the 512b vector into 16 ints
                 for(int i=0; (i<16) && (wr_count>0); i++){
-                    ap_uint<32> val = tmpword(i*32,(i+1)*32-1);
+                    ap_uint<32> val = tmpword((i+1)*32-1,i*32);
                     dst[i+16*word_count] = *reinterpret_cast<int*>(&val);
                     wr_count--;
-                    #ifndef ACCL_SYNTHESIS
-                        std::cout <<"word:"<<val<<" dst:"<<dst[i+16*word_count]<<std::endl;
-                    #endif
+                    // #ifndef ACCL_SYNTHESIS
+                    //     std::cout <<"word:"<<val<<" dst:"<<dst[i+16*word_count]<<std::endl;
+                    // #endif
                 }
                 word_count++;
             }

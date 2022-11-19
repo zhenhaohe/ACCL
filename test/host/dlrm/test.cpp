@@ -258,12 +258,22 @@ void test_dlrm_sim(ACCL::ACCL &accl, options_t &options, unsigned int numEmbedNo
   else if (own_role == DLRM_REDUCE_ROOT_ROLE)
   {
     unsigned int destination = 2*numEmbedNodes+1;
+  #ifdef DATA_FLOW
+    dlrm_reduce_root(host_op_buf, count, destination, reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, accl.get_communicator_addr(GLOBAL_COMM), accl.get_communicator_addr(REDUCE_COMM), accl.get_arithmetic_config_addr({dataType::int32, dataType::int32}), callreq, callack, data_krnl2cclo, data_cclo2krnl);
+  #else
     dlrm_reduce_root(host_op_buf, host_res_buf, count, destination, reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, accl.get_communicator_addr(GLOBAL_COMM), accl.get_communicator_addr(REDUCE_COMM), accl.get_arithmetic_config_addr({dataType::int32, dataType::int32}), callreq, callack, data_krnl2cclo, data_cclo2krnl);
+  #endif
   } else if (own_role == DLRM_REDUCE_SLAVE_ROLE)
   {
+  #ifdef DATA_FLOW
+    dlrm_reduce_slave(count, reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, accl.get_communicator_addr(REDUCE_COMM), accl.get_arithmetic_config_addr({dataType::int32, dataType::int32}),
+                    callreq, callack,
+                    data_krnl2cclo, data_cclo2krnl);
+  #else
     dlrm_reduce_slave(host_op_buf, host_res_buf, count, reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, accl.get_communicator_addr(REDUCE_COMM), accl.get_arithmetic_config_addr({dataType::int32, dataType::int32}),
                     callreq, callack,
                     data_krnl2cclo, data_cclo2krnl);
+  #endif
   } else if (own_role == DLRM_AGG_ROLE)
   {
     dlrm_agg(host_res_buf, count, data_krnl2cclo, data_cclo2krnl);
@@ -271,7 +281,10 @@ void test_dlrm_sim(ACCL::ACCL &accl, options_t &options, unsigned int numEmbedNo
 
   //stop the BFM
   cclo.stop();
-  
+
+  MPI_Barrier(MPI_COMM_WORLD);
+
+#ifndef DATA_FLOW
   if (own_role == DLRM_REDUCE_SLAVE_ROLE)
   {
     for (unsigned int i = 0; i < count; ++i) {
@@ -291,7 +304,27 @@ void test_dlrm_sim(ACCL::ACCL &accl, options_t &options, unsigned int numEmbedNo
       std::cout << "Test is successful!" << std::endl;
     }
   }
-  else if (own_role == DLRM_AGG_ROLE || own_role == DLRM_REDUCE_ROOT_ROLE)
+  if (own_role == DLRM_REDUCE_ROOT_ROLE)
+  {
+    for (unsigned int i = 0; i < count; ++i) {
+      int res = (host_res_buf)[i];
+      int ref = (int)i*numEmbedNodes;
+      if (res != ref) {
+        std::cout << std::to_string(i + 1) + "th item is incorrect! (" +
+                        std::to_string(res) + " != " + std::to_string(ref) + ")"
+                  << std::endl;
+        errors += 1;
+      }
+    }
+    if (errors > 0) {
+      std::cout << std::to_string(errors) + " errors!" << std::endl;
+      failed_tests++;
+    } else {
+      std::cout << "Test is successful!" << std::endl;
+    }
+  }
+#endif
+  if (own_role == DLRM_AGG_ROLE)
   {
     for (unsigned int i = 0; i < count; ++i) {
       int res = (host_res_buf)[i];
@@ -328,10 +361,9 @@ void start_test_sim(options_t options) {
 
   xrt::device device;
 
-  accl = std::make_unique<ACCL::ACCL>(ranks, rank, options.start_port, device,
-                                      options.udp ? networkProtocol::UDP
-                                                  : networkProtocol::TCP,
-                                      16, options.rxbuf_size);
+  accl = std::make_unique<ACCL::ACCL>(ranks, rank, options.start_port,
+                                                options.udp ? networkProtocol::UDP : networkProtocol::TCP, 16,
+                                                options.rxbuf_size);
 
 
   if (options.tcp){
@@ -554,8 +586,16 @@ void start_test(options_t options) {
     embed_buf_bo = xrt::bo(device, sizeof(int)*options.count, user_kernel.group_id(0));
     embed_buf_bo.write(host_embed_buf);
     embed_buf_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-  } else if (own_role == DLRM_REDUCE_ROOT_ROLE || own_role == DLRM_REDUCE_SLAVE_ROLE)
+  } else if (own_role == DLRM_REDUCE_ROOT_ROLE)
   {
+    #ifdef DATA_FLOW
+    // creates a buffer that can be read by the CCLO
+    op_buf_bo = xrt::bo(device, sizeof(int)*options.count, devicemem);
+    op_buf_bo.write(host_op_buf);
+    op_buf_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+    std::cout<<"DLRM_REDUCE_ROOT_ROLE op_buf_bo physical address:"<< std::hex<<op_buf_bo.address()<<std::endl;
+
+    #else
     op_buf_bo = xrt::bo(device, sizeof(int)*options.count, user_kernel.group_id(0));
     op_buf_bo.write(host_op_buf);
     op_buf_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
@@ -563,6 +603,18 @@ void start_test(options_t options) {
     res_buf_bo = xrt::bo(device, sizeof(int)*options.count, user_kernel.group_id(1));
     res_buf_bo.write(host_res_buf);
     res_buf_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+    #endif
+  } else if (own_role == DLRM_REDUCE_SLAVE_ROLE)
+  {
+    #ifndef DATA_FLOW
+    op_buf_bo = xrt::bo(device, sizeof(int)*options.count, user_kernel.group_id(0));
+    op_buf_bo.write(host_op_buf);
+    op_buf_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    res_buf_bo = xrt::bo(device, sizeof(int)*options.count, user_kernel.group_id(1));
+    res_buf_bo.write(host_res_buf);
+    res_buf_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+    #endif
   } else if (own_role == DLRM_AGG_ROLE)
   {
     res_buf_bo = xrt::bo(device, sizeof(int)*options.count, user_kernel.group_id(0));
@@ -582,11 +634,19 @@ void start_test(options_t options) {
   else if (own_role == DLRM_REDUCE_ROOT_ROLE)
   {
     unsigned int destination = 2*numEmbedNodes+1;
+    #ifdef DATA_FLOW
+    auto run = user_kernel((ap_uint<64>)op_buf_bo.address(), count, destination, reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, accl->get_communicator_addr(GLOBAL_COMM), accl->get_communicator_addr(REDUCE_COMM), accl->get_arithmetic_config_addr({dataType::int32, dataType::int32}));
+    #else
     auto run = user_kernel(op_buf_bo, res_buf_bo, count, destination, reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, accl->get_communicator_addr(GLOBAL_COMM), accl->get_communicator_addr(REDUCE_COMM), accl->get_arithmetic_config_addr({dataType::int32, dataType::int32}));
+    #endif
     run.wait();
   } else if (own_role == DLRM_REDUCE_SLAVE_ROLE)
   {
+    #ifdef DATA_FLOW
+    auto run = user_kernel(count, reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, accl->get_communicator_addr(REDUCE_COMM), accl->get_arithmetic_config_addr({dataType::int32, dataType::int32}));
+    #else
     auto run = user_kernel(op_buf_bo, res_buf_bo, count, reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, accl->get_communicator_addr(REDUCE_COMM), accl->get_arithmetic_config_addr({dataType::int32, dataType::int32}));
+    #endif
     run.wait();
   } else if (own_role == DLRM_AGG_ROLE)
   {
@@ -594,8 +654,7 @@ void start_test(options_t options) {
     run.wait();
   }
   
-  MPI_Barrier(MPI_COMM_WORLD);
-
+#ifndef DATA_FLOW
   if (own_role == DLRM_REDUCE_SLAVE_ROLE)
   {
     op_buf_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
@@ -605,9 +664,9 @@ void start_test(options_t options) {
       int res = (host_op_buf)[i];
       int ref = (int)i;
       if (res != ref) {
-        // std::cout << std::to_string(i + 1) + "th item is incorrect! (" +
-        //                 std::to_string(res) + " != " + std::to_string(ref) + ")"
-        //           << std::endl;
+        std::cout << std::to_string(i + 1) + "th item is incorrect! (" +
+                        std::to_string(res) + " != " + std::to_string(ref) + ")"
+                  << std::endl;
         errors += 1;
       }
     }
@@ -618,7 +677,30 @@ void start_test(options_t options) {
       std::cout << "Test is successful!" << std::endl;
     }
   }
-  else if (own_role == DLRM_AGG_ROLE || own_role == DLRM_REDUCE_ROOT_ROLE)
+  if (own_role == DLRM_REDUCE_ROOT_ROLE)
+  {
+    res_buf_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+    res_buf_bo.read(host_res_buf);
+
+    for (unsigned int i = 0; i < count; ++i) {
+      int res = (host_res_buf)[i];
+      int ref = (int)i*numEmbedNodes;
+      if (res != ref) {
+        std::cout << std::to_string(i + 1) + "th item is incorrect! (" +
+                        std::to_string(res) + " != " + std::to_string(ref) + ")"
+                  << std::endl;
+        errors += 1;
+      }
+    }
+    if (errors > 0) {
+      std::cout << std::to_string(errors) + " errors!" << std::endl;
+      failed_tests++;
+    } else {
+      std::cout << "Test is successful!" << std::endl;
+    }
+  }
+#endif
+  if (own_role == DLRM_AGG_ROLE)
   {
     res_buf_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
     res_buf_bo.read(host_res_buf);
@@ -641,7 +723,6 @@ void start_test(options_t options) {
     }
   }
 
-  MPI_Barrier(MPI_COMM_WORLD);
   std::cout << failed_tests << " tests failed on rank " << rank;
   if (skipped_tests > 0) {
     std::cout << " (skipped " << skipped_tests << " tests)";
@@ -682,14 +763,14 @@ options_t parse_options(int argc, char *argv[]) {
                                             false, 1, "positive integer");
     cmd.add(nruns_arg);
     TCLAP::ValueArg<uint16_t> start_port_arg(
-        "s", "start-port", "Start of range of ports usable for sim", false, 5005,
+        "s", "start-port", "Start of range of ports usable for sim", false, 5500,
         "positive integer");
     cmd.add(start_port_arg);
     TCLAP::ValueArg<uint32_t> count_arg("c", "count", "How many element per buffer",
                                         false, 16, "positive integer");
     cmd.add(count_arg);
     TCLAP::ValueArg<uint16_t> bufsize_arg("b", "rxbuf-size",
-                                          "How many KB per RX buffer", false, 4096,
+                                          "How many KB per RX buffer", false, 256,
                                           "positive integer");
     cmd.add(bufsize_arg);
     TCLAP::ValueArg<uint32_t> seg_arg("g", "max_segment_size",

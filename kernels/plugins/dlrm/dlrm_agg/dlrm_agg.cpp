@@ -18,6 +18,45 @@
 
 #include <dlrm.h>
 
+#ifdef DATA_FLOW
+
+void dlrm_agg(
+    int *dst,
+    int count,
+    // //parameters pertaining to CCLO config
+    // ap_uint<32> comm_adr, 
+    // ap_uint<32> dpcfg_adr,
+    // //streams to and from CCLO
+    // STREAM<command_word> &cmd_to_cclo,
+    // STREAM<command_word> &sts_from_cclo,
+    STREAM<stream_word> &data_to_cclo,
+    STREAM<stream_word> &data_from_cclo
+){
+#pragma HLS INTERFACE s_axilite port=count
+// #pragma HLS INTERFACE s_axilite port=comm_adr
+// #pragma HLS INTERFACE s_axilite port=dpcfg_adr
+#pragma HLS INTERFACE m_axi port=dst offset=slave
+// #pragma HLS INTERFACE axis port=cmd_to_cclo
+// #pragma HLS INTERFACE axis port=sts_from_cclo
+#pragma HLS INTERFACE axis port=data_to_cclo
+#pragma HLS INTERFACE axis port=data_from_cclo
+#pragma HLS INTERFACE s_axilite port=return
+
+#pragma HLS dataflow disable_start_propagation
+
+    //set up interfaces
+    // accl_hls::ACCLCommand accl(cmd_to_cclo, sts_from_cclo, comm_adr, dpcfg_adr, 0, 3);
+    accl_hls::ACCLData data(data_to_cclo, data_from_cclo);
+    //pull data from CCLO and write it to dst
+    data.pull_to_mem(dst, count);
+    data.tie_off_krnl2cclo();
+    #ifndef ACCL_SYNTHESIS
+        std::cout << "dlrm_agg: finish" << "\n";
+    #endif
+}
+
+#else
+
 void dlrm_agg(
     int *dst,
     int count,
@@ -49,3 +88,5 @@ void dlrm_agg(
         std::cout << "dlrm_agg: finish" << "\n";
     #endif
 }
+
+#endif

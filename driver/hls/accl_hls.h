@@ -70,6 +70,65 @@ namespace accl_hls {
 #define ACCL_ALLREDUCE      10
 #define ACCL_REDUCE_SCATTER 11
 
+// Raw interfaces to start the function call
+inline void start(
+    ap_uint<32> scenario,
+    ap_uint<32> len,
+    ap_uint<32> comm,
+    ap_uint<32> root_src_dst,
+    ap_uint<32> function,
+    ap_uint<32> msg_tag,
+    ap_uint<32> datapath_cfg,
+    ap_uint<32> compression_flags,
+    ap_uint<32> stream_flags,
+    ap_uint<64> addra,
+    ap_uint<64> addrb,
+    ap_uint<64> addrc,
+    STREAM<command_word > &cmd
+){
+#pragma HLS PIPELINE II=1
+    command_word tmp;
+    tmp.keep = 0xf;
+
+    tmp.data=scenario; tmp.last=0;
+    STREAM_WRITE(cmd, tmp);
+    tmp.data=len; tmp.last=0;
+    STREAM_WRITE(cmd, tmp);
+    tmp.data=comm; tmp.last=0;
+    STREAM_WRITE(cmd, tmp);
+    tmp.data=root_src_dst; tmp.last=0;
+    STREAM_WRITE(cmd, tmp);
+    tmp.data=function; tmp.last=0;
+    STREAM_WRITE(cmd, tmp);
+    tmp.data=msg_tag; tmp.last=0;
+    STREAM_WRITE(cmd, tmp);
+    tmp.data=datapath_cfg; tmp.last=0;
+    STREAM_WRITE(cmd, tmp);
+    tmp.data=compression_flags; tmp.last=0;
+    STREAM_WRITE(cmd, tmp);
+    tmp.data=stream_flags; tmp.last=0;
+    STREAM_WRITE(cmd, tmp);
+    tmp.data=addra(31,0); tmp.last=0;
+    STREAM_WRITE(cmd, tmp);
+    tmp.data=addra(63,32); tmp.last=0;
+    STREAM_WRITE(cmd, tmp);
+    tmp.data=addrb(31,0); tmp.last=0;
+    STREAM_WRITE(cmd, tmp);
+    tmp.data=addrb(63,32); tmp.last=0;
+    STREAM_WRITE(cmd, tmp);
+    tmp.data=addrc(31,0); tmp.last=0;
+    STREAM_WRITE(cmd, tmp);
+    tmp.data=addrc(63,32); tmp.last=1;
+    STREAM_WRITE(cmd, tmp);
+}
+
+// Raw interface to consume the ack
+inline void finalize(STREAM<command_word > &sts)
+{
+#pragma HLS PIPELINE II=1
+    STREAM_READ(sts);
+}
+
 /**
  * @brief Class encapsulating ACCL command streams
  * 
@@ -487,6 +546,28 @@ class ACCLCommand{
         }
 
         /**
+         * @brief Reduce data memory to memory
+         * 
+         * @param len Number of array elements
+         * @param root Rank ID of root node
+         * @param function Reduction function ID
+         * @param src_addr Source array address
+         * @param dst_addr Destination array address
+         */
+        void reduce_nb(ap_uint<32> len,
+                    ap_uint<32> root,
+                    ap_uint<32> function,
+                    ap_uint<64> src_addr,
+                    ap_uint<64> dst_addr
+        ){
+            start_call(
+                ACCL_REDUCE, len, comm_adr, root, function, 0, 
+                dpcfg_adr, cflags, sflags, 
+                src_addr, 0, dst_addr
+            );
+        }
+
+        /**
          * @brief Reduce-scatter data in the communicator. Equivalent to reduce followed by scatter
          * 
          * @param len Number of array elements
@@ -627,6 +708,24 @@ class ACCLData{
         }
 
         /**
+         * @brief Read data from stream and push user data to the CCLO
+         * 
+         * @param data Data word (64B)
+         * @param dest Destination value (potentially used in routing)
+         */
+        void push_from_stream (STREAM<ap_uint<512> > &src_stream, int count, ap_uint<DEST_WIDTH> dest=0)
+        {
+            ap_uint<512> tmpword;
+            int rd_count = (count + 15) / 16;
+            while(rd_count > 0){
+                tmpword = src_stream.read();
+                //send the vector to cclo
+                push(tmpword, dest);
+                rd_count--;
+            }
+        }
+
+        /**
          * @brief Pull data from CCLO stream and store it in mem
          * 
          * @return stream_word
@@ -653,6 +752,23 @@ class ACCLData{
                     // #endif
                 }
                 word_count++;
+            }
+        }
+
+        /**
+         * @brief Pull data from CCLO stream and store it to stream
+         * 
+         * @return stream_word
+         */
+        void pull_to_stream (STREAM<ap_uint<512> > &dst_stream, int count)
+        {
+            ap_uint<512> tmpword;
+            int wr_count = (count + 15) / 16 ;
+            while(wr_count > 0){
+                //read vector from CCLO
+                tmpword = pull().data;
+                dst_stream.write(tmpword);
+                wr_count--;
             }
         }
 };

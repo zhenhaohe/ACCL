@@ -93,10 +93,10 @@ std::unique_ptr<ACCL::ACCL> test_vadd_put(options_t options) {
 
         accl = std::make_unique<ACCL::ACCL>(
             ranks, rank, device, cclo_ip, hostctrl_ip, devicemem, rxbufmem,
-            networkProtocol::UDP, 16, options.rxbuf_size);
+            networkProtocol::UDP, options.num_rxbufmem, options.rxbuf_size);
     } else {
         accl = std::make_unique<ACCL::ACCL>(ranks, rank, options.start_port,
-                                                options.udp ? networkProtocol::UDP : networkProtocol::TCP, 16,
+                                                options.udp ? networkProtocol::UDP : networkProtocol::TCP, options.num_rxbufmem,,
                                                 options.rxbuf_size);
     }
 
@@ -409,7 +409,7 @@ void start_test_sim(options_t options) {
   xrt::device device;
 
   accl = std::make_unique<ACCL::ACCL>(ranks, rank, options.start_port,
-                                                options.udp ? networkProtocol::UDP : networkProtocol::TCP, 16,
+                                                options.udp ? networkProtocol::UDP : networkProtocol::TCP, options.num_rxbufmem,
                                                 options.rxbuf_size);
 
 
@@ -568,7 +568,7 @@ void start_test(options_t options) {
   accl = std::make_unique<ACCL::ACCL>(
       ranks, rank, device, cclo_ip, hostctrl_ip, devicemem, rxbufmem,
       options.udp ? networkProtocol::UDP : networkProtocol::TCP,
-      16, options.rxbuf_size);
+      options.num_rxbufmem, options.rxbuf_size);
   
   accl->set_timeout(1e12);
 

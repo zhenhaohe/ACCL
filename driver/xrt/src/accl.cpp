@@ -798,6 +798,42 @@ CCLO *ACCL::reduce(dataType src_data_type, dataType dst_data_type,
   return nullptr;
 }
 
+CCLO *ACCL::reduce_put(dataType src_data_type, dataType dst_data_type,
+                   unsigned int count, unsigned int root,
+                   reduceFunction func, communicatorId comm_id,
+                   dataType compress_dtype, bool run_async,
+                   std::vector<CCLO *> waitfor) {
+  CCLO::Options options{};
+
+  const Communicator &communicator = communicators[comm_id];
+
+  if (count == 0) {
+    std::cerr << "ACCL: zero size buffer" << std::endl;
+    return nullptr;
+  }
+
+  options.scenario = operation::reduce_put;
+  options.comm = communicator.communicators_addr();
+  options.data_type_io_0 = src_data_type;
+  options.data_type_io_1 = dst_data_type;
+  options.count = count;
+  options.reduce_function = func;
+  options.root_src_dst = root;
+  options.compress_dtype = compress_dtype;
+  options.waitfor = waitfor;
+  options.stream_flags = streamFlags::OP0_STREAM;
+  CCLO *handle = call_async(options);
+
+  if (run_async) {
+    return handle;
+  } else {
+    handle->wait();
+    check_return_value("reduce");
+  }
+
+  return nullptr;
+}
+
 CCLO *ACCL::allreduce(BaseBuffer &sendbuf,
                       BaseBuffer &recvbuf, unsigned int count,
                       reduceFunction func, communicatorId comm_id,
@@ -1020,7 +1056,7 @@ std::string ACCL::dump_rx_buffers(size_t nbufs, bool dump_data) {
 
 void ACCL::initialize_accl(const std::vector<rank_t> &ranks, int local_rank,
                            int nbufs, addr_t bufsize , addr_t segsize) {
-  reset_log();
+  // reset_log();
   debug("CCLO HWID: " + std::to_string(get_hwid()) + " at 0x" +
         debug_hex(cclo->get_base_addr()));
 
@@ -1056,9 +1092,11 @@ void ACCL::initialize_accl(const std::vector<rank_t> &ranks, int local_rank,
   switch (protocol) {
   case networkProtocol::UDP:
     use_udp();
+    debug("Set UDP");
     break;
   case networkProtocol::TCP:
     use_tcp();
+    debug("Set TCP");
     break;
   default:
     throw std::runtime_error(

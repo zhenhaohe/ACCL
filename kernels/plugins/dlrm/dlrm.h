@@ -22,7 +22,6 @@
 #define DLRM_EMBED_ROLE 2
 #define DLRM_AGG_ROLE 3
 
-#define DATA_FLOW
 
 void dlrm_agg(
     int *dst,
@@ -52,12 +51,7 @@ void dlrm_embedding(
 );
 
 void dlrm_reduce_root(
-#ifndef DATA_FLOW
-    int *src,
-    int *dst,
-#else
     ap_uint<64> src_addr,
-#endif
     int count,
     unsigned int destination,
     //reduce configuration
@@ -75,10 +69,6 @@ void dlrm_reduce_root(
 );
 
 void dlrm_reduce_slave(
-#ifndef DATA_FLOW
-    int *src,
-    int *dst,
-#endif
     int count,
     //reduce configuration
     unsigned int root,

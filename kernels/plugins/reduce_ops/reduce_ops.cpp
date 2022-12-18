@@ -32,6 +32,9 @@ ap_uint<data_width> stream_add(ap_uint<data_width> op1, ap_uint<data_width> op2)
 	unsigned const simd = data_width / dwb;
 	ap_uint<data_width> res;
 	
+	#ifndef ACCL_SYNTHESIS
+        std::cout << "reduce_ops: stream_add" << "\n";
+    #endif
 	for (unsigned int j = 0; j < simd; j++) {
 #pragma HLS UNROLL
 		ap_uint<dwb> op1_word = op1((j+1)*dwb-1,j*dwb);
@@ -41,6 +44,9 @@ ap_uint<data_width> stream_add(ap_uint<data_width> op1, ap_uint<data_width> op2)
 		T sum = op1_word_t + op2_word_t;
 		ap_uint<dwb> res_word = *reinterpret_cast<ap_uint<dwb>*>(&sum);
 		res((j+1)*dwb-1,j*dwb) = res_word;
+		#ifndef ACCL_SYNTHESIS
+        	std::cout<<std::hex << "op1: " <<op1_word<<" op2:"<<op2_word<<" res:"<<res_word<< "\n";
+    	#endif
 	}
 
 	return res;
@@ -98,6 +104,9 @@ void reduce_ops(STREAM<stream_word> & in0, STREAM<stream_word> & in1, STREAM<str
 		wword.keep = op0.keep;
 		wword.dest = 0;
 		STREAM_WRITE(out, wword);
+		#ifndef ACCL_SYNTHESIS
+        	std::cout << "op0.dest: " <<op0.dest<<" op1.dest:"<<op1.dest<< "\n";
+    	#endif
 
 	} while(op0.last != 1);
 }

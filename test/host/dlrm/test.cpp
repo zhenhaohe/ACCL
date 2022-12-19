@@ -96,7 +96,7 @@ std::unique_ptr<ACCL::ACCL> test_vadd_put(options_t options) {
             networkProtocol::UDP, options.num_rxbufmem, options.rxbuf_size);
     } else {
         accl = std::make_unique<ACCL::ACCL>(ranks, rank, options.start_port,
-                                                options.udp ? networkProtocol::UDP : networkProtocol::TCP, options.num_rxbufmem,,
+                                                options.udp ? networkProtocol::UDP : networkProtocol::TCP, options.num_rxbufmem,
                                                 options.rxbuf_size);
     }
 

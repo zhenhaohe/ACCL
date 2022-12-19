@@ -436,7 +436,7 @@ void start_test_sim(options_t options) {
   xrt::device device;
 
   accl = std::make_unique<ACCL::ACCL>(ranks, rank, options.start_port,
-                                                options.udp ? networkProtocol::UDP : networkProtocol::TCP, 16,
+                                                options.udp ? networkProtocol::UDP : networkProtocol::TCP, options.num_rxbufmem,
                                                 options.rxbuf_size);
 
 

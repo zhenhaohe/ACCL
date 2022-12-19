@@ -17,6 +17,8 @@
 *******************************************************************************/
 
 #include <accl_hls.h>
+#include "constants.hpp"
+
 #define DLRM_REDUCE_SLAVE_ROLE 0
 #define DLRM_REDUCE_ROOT_ROLE 1
 #define DLRM_EMBED_ROLE 2
@@ -37,7 +39,33 @@ void dlrm_agg(
 );
 
 void dlrm_embedding(
-    int *src,
+    // int *src,
+    int *table_HBM0,
+    int *table_HBM1,
+    int *table_HBM2,
+    int *table_HBM3,
+    int *table_HBM4,
+    int *table_HBM5,
+    int *table_HBM6,
+    int *table_HBM7,
+    int *table_HBM8,
+    int *table_HBM9,
+    int *table_HBM10,
+    int *table_HBM11,
+    int *table_HBM12,
+    int *table_HBM13,
+    int *table_HBM14,
+    int *table_HBM15,
+    int *table_HBM16,
+    int *table_HBM17,
+    int *table_HBM18,
+    int *table_HBM19,
+    int *table_HBM20,
+    int *table_HBM21,
+    int *table_HBM22,
+    int *table_HBM23,
+    int *table_HBM24,
+
     int count,
     unsigned int destination,
     //parameters pertaining to CCLO config

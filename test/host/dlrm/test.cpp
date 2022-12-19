@@ -93,10 +93,10 @@ std::unique_ptr<ACCL::ACCL> test_vadd_put(options_t options) {
 
         accl = std::make_unique<ACCL::ACCL>(
             ranks, rank, device, cclo_ip, hostctrl_ip, devicemem, rxbufmem,
-            networkProtocol::UDP, 16, options.rxbuf_size);
+            networkProtocol::UDP, options.num_rxbufmem, options.rxbuf_size);
     } else {
         accl = std::make_unique<ACCL::ACCL>(ranks, rank, options.start_port,
-                                                options.udp ? networkProtocol::UDP : networkProtocol::TCP, 16,
+                                                options.udp ? networkProtocol::UDP : networkProtocol::TCP, options.num_rxbufmem,
                                                 options.rxbuf_size);
     }
 
@@ -349,7 +349,34 @@ void test_dlrm_sim(ACCL::ACCL &accl, options_t &options, unsigned int numEmbedNo
   if (own_role == DLRM_EMBED_ROLE)
   {
     unsigned int dst_rank = own_rank - reduce_comm_size;
-    dlrm_embedding(host_embed_buf, count, dst_rank, accl.get_communicator_addr(GLOBAL_COMM), accl.get_arithmetic_config_addr({dataType::int32, dataType::int32}), callreq, callack, data_krnl2cclo, data_cclo2krnl);
+    dlrm_embedding(
+            // 25 memory channels
+            host_embed_buf, 
+            host_embed_buf,
+            host_embed_buf,
+            host_embed_buf,
+            host_embed_buf,
+            host_embed_buf, 
+            host_embed_buf,
+            host_embed_buf,
+            host_embed_buf,
+            host_embed_buf,
+            host_embed_buf, 
+            host_embed_buf,
+            host_embed_buf,
+            host_embed_buf,
+            host_embed_buf,
+            host_embed_buf, 
+            host_embed_buf,
+            host_embed_buf,
+            host_embed_buf,
+            host_embed_buf,
+            host_embed_buf, 
+            host_embed_buf,
+            host_embed_buf,
+            host_embed_buf,
+            host_embed_buf,
+            count, dst_rank, accl.get_communicator_addr(GLOBAL_COMM), accl.get_arithmetic_config_addr({dataType::int32, dataType::int32}), callreq, callack, data_krnl2cclo, data_cclo2krnl);
   }
   // recv and reduce operation for reduce nodes
   else if (own_role == DLRM_REDUCE_ROOT_ROLE)
@@ -454,6 +481,288 @@ void start_test(options_t options) {
   std::vector<rank_t> ranks = {};
   failed_tests = 0;
   skipped_tests = 0;
+
+  size_t HBM_embedding0_size =  HBM_BANK0_SIZE;
+  size_t HBM_embedding1_size =  HBM_BANK1_SIZE;
+  size_t HBM_embedding2_size =  HBM_BANK2_SIZE;
+  size_t HBM_embedding3_size =  HBM_BANK3_SIZE;
+  size_t HBM_embedding4_size =  HBM_BANK4_SIZE;
+  size_t HBM_embedding5_size =  HBM_BANK5_SIZE;
+  size_t HBM_embedding6_size =  HBM_BANK6_SIZE;
+  size_t HBM_embedding7_size =  HBM_BANK7_SIZE;
+  size_t HBM_embedding8_size =  HBM_BANK8_SIZE;
+  size_t HBM_embedding9_size =  HBM_BANK9_SIZE;
+  size_t HBM_embedding10_size =  HBM_BANK10_SIZE;
+  size_t HBM_embedding11_size =  HBM_BANK11_SIZE;
+  size_t HBM_embedding12_size =  HBM_BANK12_SIZE;
+  size_t HBM_embedding13_size =  HBM_BANK13_SIZE;
+  size_t HBM_embedding14_size =  HBM_BANK14_SIZE;
+  size_t HBM_embedding15_size =  HBM_BANK15_SIZE;
+  size_t HBM_embedding16_size =  HBM_BANK16_SIZE;
+  size_t HBM_embedding17_size =  HBM_BANK17_SIZE;
+  size_t HBM_embedding18_size =  HBM_BANK18_SIZE;
+  size_t HBM_embedding19_size =  HBM_BANK19_SIZE;
+  size_t HBM_embedding20_size =  HBM_BANK20_SIZE;
+  size_t HBM_embedding21_size =  HBM_BANK21_SIZE;
+  size_t HBM_embedding22_size =  HBM_BANK22_SIZE;
+  size_t HBM_embedding23_size =  HBM_BANK23_SIZE;
+  size_t HBM_embedding24_size =  HBM_BANK24_SIZE;
+
+  int HBM_embedding0[HBM_embedding0_size];
+  int HBM_embedding1[HBM_embedding1_size];
+  int HBM_embedding2[HBM_embedding2_size];
+  int HBM_embedding3[HBM_embedding3_size];
+  int HBM_embedding4[HBM_embedding4_size];
+  int HBM_embedding5[HBM_embedding5_size];
+  int HBM_embedding6[HBM_embedding6_size];
+  int HBM_embedding7[HBM_embedding7_size];
+  int HBM_embedding8[HBM_embedding8_size];
+  int HBM_embedding9[HBM_embedding9_size];
+  int HBM_embedding10[HBM_embedding10_size];
+  int HBM_embedding11[HBM_embedding11_size];
+  int HBM_embedding12[HBM_embedding12_size];
+  int HBM_embedding13[HBM_embedding13_size];
+  int HBM_embedding14[HBM_embedding14_size];
+  int HBM_embedding15[HBM_embedding15_size];
+  int HBM_embedding16[HBM_embedding16_size];
+  int HBM_embedding17[HBM_embedding17_size];
+  int HBM_embedding18[HBM_embedding18_size];
+  int HBM_embedding19[HBM_embedding19_size];
+  int HBM_embedding20[HBM_embedding20_size];
+  int HBM_embedding21[HBM_embedding21_size];
+  int HBM_embedding22[HBM_embedding22_size];
+  int HBM_embedding23[HBM_embedding23_size];
+  int HBM_embedding24[HBM_embedding24_size];
+
+// #define DEBUG
+#ifdef DEBUG
+    const int weights_init = 1;
+#endif
+    for (int i = 0 ; i < TABLE_SIZE_HBM_0 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_0; j++) {
+#ifdef DEBUG
+        HBM_embedding0[i * PADDED_SIZE_HBM_0 + j + ADDR_AXI_HBM_0] = weights_init;
+#else
+        HBM_embedding0[i * PADDED_SIZE_HBM_0 + j + ADDR_AXI_HBM_0] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_1 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_1; j++) {
+#ifdef DEBUG
+        HBM_embedding1[i * PADDED_SIZE_HBM_1 + j + ADDR_AXI_HBM_1] = weights_init;
+#else
+        HBM_embedding1[i * PADDED_SIZE_HBM_1 + j + ADDR_AXI_HBM_1] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_2 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_2; j++) {
+#ifdef DEBUG
+        HBM_embedding2[i * PADDED_SIZE_HBM_2 + j + ADDR_AXI_HBM_2] = weights_init;
+#else
+        HBM_embedding2[i * PADDED_SIZE_HBM_2 + j + ADDR_AXI_HBM_2] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_3 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_3; j++) {
+#ifdef DEBUG
+        HBM_embedding3[i * PADDED_SIZE_HBM_3 + j + ADDR_AXI_HBM_3] = weights_init;
+#else
+        HBM_embedding3[i * PADDED_SIZE_HBM_3 + j + ADDR_AXI_HBM_3] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_4 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_4; j++) {
+#ifdef DEBUG
+        HBM_embedding4[i * PADDED_SIZE_HBM_4 + j + ADDR_AXI_HBM_4] = weights_init;
+#else
+        HBM_embedding4[i * PADDED_SIZE_HBM_4 + j + ADDR_AXI_HBM_4] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_5 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_5; j++) {
+#ifdef DEBUG
+        HBM_embedding5[i * PADDED_SIZE_HBM_5 + j + ADDR_AXI_HBM_5] = weights_init;
+#else
+        HBM_embedding5[i * PADDED_SIZE_HBM_5 + j + ADDR_AXI_HBM_5] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_6 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_6; j++) {
+#ifdef DEBUG
+        HBM_embedding6[i * PADDED_SIZE_HBM_6 + j + ADDR_AXI_HBM_6] = weights_init;
+#else
+        HBM_embedding6[i * PADDED_SIZE_HBM_6 + j + ADDR_AXI_HBM_6] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_7 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_7; j++) {
+#ifdef DEBUG
+        HBM_embedding7[i * PADDED_SIZE_HBM_7 + j + ADDR_AXI_HBM_7] = weights_init;
+#else
+        HBM_embedding7[i * PADDED_SIZE_HBM_7 + j + ADDR_AXI_HBM_7] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_8 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_8; j++) {
+#ifdef DEBUG
+        HBM_embedding8[i * PADDED_SIZE_HBM_8 + j + ADDR_AXI_HBM_8] = weights_init;
+#else
+        HBM_embedding8[i * PADDED_SIZE_HBM_8 + j + ADDR_AXI_HBM_8] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_9 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_9; j++) {
+#ifdef DEBUG
+        HBM_embedding9[i * PADDED_SIZE_HBM_9 + j + ADDR_AXI_HBM_9] = weights_init;
+#else
+        HBM_embedding9[i * PADDED_SIZE_HBM_9 + j + ADDR_AXI_HBM_9] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_10 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_10; j++) {
+#ifdef DEBUG
+        HBM_embedding10[i * PADDED_SIZE_HBM_10 + j + ADDR_AXI_HBM_10] = weights_init;
+#else
+        HBM_embedding10[i * PADDED_SIZE_HBM_10 + j + ADDR_AXI_HBM_10] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_11 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_11; j++) {
+#ifdef DEBUG
+        HBM_embedding11[i * PADDED_SIZE_HBM_11 + j + ADDR_AXI_HBM_11] = weights_init;
+#else
+        HBM_embedding11[i * PADDED_SIZE_HBM_11 + j + ADDR_AXI_HBM_11] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_12 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_12; j++) {
+#ifdef DEBUG
+        HBM_embedding12[i * PADDED_SIZE_HBM_12 + j + ADDR_AXI_HBM_12] = weights_init;
+#else
+        HBM_embedding12[i * PADDED_SIZE_HBM_12 + j + ADDR_AXI_HBM_12] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_13 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_13; j++) {
+#ifdef DEBUG
+        HBM_embedding13[i * PADDED_SIZE_HBM_13 + j + ADDR_AXI_HBM_13] = weights_init;
+#else
+        HBM_embedding13[i * PADDED_SIZE_HBM_13 + j + ADDR_AXI_HBM_13] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_14 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_14; j++) {
+#ifdef DEBUG
+        HBM_embedding14[i * PADDED_SIZE_HBM_14 + j + ADDR_AXI_HBM_14] = weights_init;
+#else
+        HBM_embedding14[i * PADDED_SIZE_HBM_14 + j + ADDR_AXI_HBM_14] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_15 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_15; j++) {
+#ifdef DEBUG
+        HBM_embedding15[i * PADDED_SIZE_HBM_15 + j + ADDR_AXI_HBM_15] = weights_init;
+#else
+        HBM_embedding15[i * PADDED_SIZE_HBM_15 + j + ADDR_AXI_HBM_15] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_16 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_16; j++) {
+#ifdef DEBUG
+        HBM_embedding16[i * PADDED_SIZE_HBM_16 + j + ADDR_AXI_HBM_16] = weights_init;
+#else
+        HBM_embedding16[i * PADDED_SIZE_HBM_16 + j + ADDR_AXI_HBM_16] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_17 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_17; j++) {
+#ifdef DEBUG
+        HBM_embedding17[i * PADDED_SIZE_HBM_17 + j + ADDR_AXI_HBM_17] = weights_init;
+#else
+        HBM_embedding17[i * PADDED_SIZE_HBM_17 + j + ADDR_AXI_HBM_17] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_18 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_18; j++) {
+#ifdef DEBUG
+        HBM_embedding18[i * PADDED_SIZE_HBM_18 + j + ADDR_AXI_HBM_18] = weights_init;
+#else
+        HBM_embedding18[i * PADDED_SIZE_HBM_18 + j + ADDR_AXI_HBM_18] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_19 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_19; j++) {
+#ifdef DEBUG
+        HBM_embedding19[i * PADDED_SIZE_HBM_19 + j + ADDR_AXI_HBM_19] = weights_init;
+#else
+        HBM_embedding19[i * PADDED_SIZE_HBM_19 + j + ADDR_AXI_HBM_19] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_20 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_20; j++) {
+#ifdef DEBUG
+        HBM_embedding20[i * PADDED_SIZE_HBM_20 + j + ADDR_AXI_HBM_20] = weights_init;
+#else
+        HBM_embedding20[i * PADDED_SIZE_HBM_20 + j + ADDR_AXI_HBM_20] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_21 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_21; j++) {
+#ifdef DEBUG
+        HBM_embedding21[i * PADDED_SIZE_HBM_21 + j + ADDR_AXI_HBM_21] = weights_init;
+#else
+        HBM_embedding21[i * PADDED_SIZE_HBM_21 + j + ADDR_AXI_HBM_21] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_22 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_22; j++) {
+#ifdef DEBUG
+        HBM_embedding22[i * PADDED_SIZE_HBM_22 + j + ADDR_AXI_HBM_22] = weights_init;
+#else
+        HBM_embedding22[i * PADDED_SIZE_HBM_22 + j + ADDR_AXI_HBM_22] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_23 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_23; j++) {
+#ifdef DEBUG
+        HBM_embedding23[i * PADDED_SIZE_HBM_23 + j + ADDR_AXI_HBM_23] = weights_init;
+#else
+        HBM_embedding23[i * PADDED_SIZE_HBM_23 + j + ADDR_AXI_HBM_23] = rand() % 2;
+#endif
+        }
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_24 ; i++) {
+        for (int j = 0; j < DATA_SIZE_HBM_24; j++) {
+#ifdef DEBUG
+        HBM_embedding24[i * PADDED_SIZE_HBM_24 + j + ADDR_AXI_HBM_24] = weights_init;
+#else
+        HBM_embedding24[i * PADDED_SIZE_HBM_24 + j + ADDR_AXI_HBM_24] = rand() % 2;
+#endif
+        }
+    }
 
 	std::vector<std::string> ipList;
 
@@ -568,7 +877,7 @@ void start_test(options_t options) {
   accl = std::make_unique<ACCL::ACCL>(
       ranks, rank, device, cclo_ip, hostctrl_ip, devicemem, rxbufmem,
       options.udp ? networkProtocol::UDP : networkProtocol::TCP,
-      16, options.rxbuf_size);
+      options.num_rxbufmem, options.rxbuf_size);
   
   accl->set_timeout(1e12);
 
@@ -629,16 +938,146 @@ void start_test(options_t options) {
     host_res_buf[i] = 0;
   }
 
-  std::cout<<"host_embed_buf:"<<host_embed_buf<<" host_op_buf:"<<host_op_buf<<" host_res_buf:"<<host_res_buf<<std::endl;
+  // std::cout<<"host_embed_buf:"<<host_embed_buf<<" host_op_buf:"<<host_op_buf<<" host_res_buf:"<<host_res_buf<<std::endl;
 
   xrt::bo embed_buf_bo;
   xrt::bo op_buf_bo;
   xrt::bo res_buf_bo;
 
+  xrt::bo   HBM_embedding0_bo,
+            HBM_embedding1_bo,
+            HBM_embedding2_bo,
+            HBM_embedding3_bo,
+            HBM_embedding4_bo,
+            HBM_embedding5_bo,
+            HBM_embedding6_bo,
+            HBM_embedding7_bo,
+            HBM_embedding8_bo,
+            HBM_embedding9_bo,
+            HBM_embedding10_bo,
+            HBM_embedding11_bo,
+            HBM_embedding12_bo,
+            HBM_embedding13_bo,
+            HBM_embedding14_bo,
+            HBM_embedding15_bo,
+            HBM_embedding16_bo,
+            HBM_embedding17_bo,
+            HBM_embedding18_bo,
+            HBM_embedding19_bo,
+            HBM_embedding20_bo,
+            HBM_embedding21_bo,
+            HBM_embedding22_bo,
+            HBM_embedding23_bo,
+            HBM_embedding24_bo;
+  
+
   if (own_role == DLRM_EMBED_ROLE){
-    embed_buf_bo = xrt::bo(device, sizeof(int)*options.count, user_kernel.group_id(0));
-    embed_buf_bo.write(host_embed_buf);
-    embed_buf_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+    // embed_buf_bo = xrt::bo(device, sizeof(int)*options.count, user_kernel.group_id(0));
+    // embed_buf_bo.write(host_embed_buf);
+    // embed_buf_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding0_bo = xrt::bo(device, HBM_embedding0_size *sizeof(int), user_kernel.group_id(0));
+    HBM_embedding0_bo.write(HBM_embedding0);
+    HBM_embedding0_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding1_bo = xrt::bo(device, HBM_embedding1_size *sizeof(int), user_kernel.group_id(1));
+    HBM_embedding1_bo.write(HBM_embedding1);
+    HBM_embedding1_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding2_bo = xrt::bo(device, HBM_embedding2_size *sizeof(int), user_kernel.group_id(2));
+    HBM_embedding2_bo.write(HBM_embedding2);
+    HBM_embedding2_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding3_bo = xrt::bo(device, HBM_embedding3_size *sizeof(int), user_kernel.group_id(3));
+    HBM_embedding3_bo.write(HBM_embedding3);
+    HBM_embedding3_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding4_bo = xrt::bo(device, HBM_embedding4_size *sizeof(int), user_kernel.group_id(4));
+    HBM_embedding4_bo.write(HBM_embedding4);
+    HBM_embedding4_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding5_bo = xrt::bo(device, HBM_embedding5_size *sizeof(int), user_kernel.group_id(5));
+    HBM_embedding5_bo.write(HBM_embedding5);
+    HBM_embedding5_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding6_bo = xrt::bo(device, HBM_embedding6_size *sizeof(int), user_kernel.group_id(6));
+    HBM_embedding6_bo.write(HBM_embedding6);
+    HBM_embedding6_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding7_bo = xrt::bo(device, HBM_embedding7_size *sizeof(int), user_kernel.group_id(7));
+    HBM_embedding7_bo.write(HBM_embedding7);
+    HBM_embedding7_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding8_bo = xrt::bo(device, HBM_embedding8_size *sizeof(int), user_kernel.group_id(8));
+    HBM_embedding8_bo.write(HBM_embedding8);
+    HBM_embedding8_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding9_bo = xrt::bo(device, HBM_embedding9_size *sizeof(int), user_kernel.group_id(9));
+    HBM_embedding9_bo.write(HBM_embedding9);
+    HBM_embedding9_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding10_bo = xrt::bo(device, HBM_embedding10_size *sizeof(int), user_kernel.group_id(10));
+    HBM_embedding10_bo.write(HBM_embedding10);
+    HBM_embedding10_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding11_bo = xrt::bo(device, HBM_embedding11_size *sizeof(int), user_kernel.group_id(11));
+    HBM_embedding11_bo.write(HBM_embedding11);
+    HBM_embedding11_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding12_bo = xrt::bo(device, HBM_embedding12_size *sizeof(int), user_kernel.group_id(12));
+    HBM_embedding12_bo.write(HBM_embedding12);
+    HBM_embedding12_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding13_bo = xrt::bo(device, HBM_embedding13_size *sizeof(int), user_kernel.group_id(13));
+    HBM_embedding13_bo.write(HBM_embedding13);
+    HBM_embedding13_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding14_bo = xrt::bo(device, HBM_embedding14_size *sizeof(int), user_kernel.group_id(14));
+    HBM_embedding14_bo.write(HBM_embedding14);
+    HBM_embedding14_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding15_bo = xrt::bo(device, HBM_embedding15_size *sizeof(int), user_kernel.group_id(15));
+    HBM_embedding15_bo.write(HBM_embedding15);
+    HBM_embedding15_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding16_bo = xrt::bo(device, HBM_embedding16_size *sizeof(int), user_kernel.group_id(16));
+    HBM_embedding16_bo.write(HBM_embedding16);
+    HBM_embedding16_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding17_bo = xrt::bo(device, HBM_embedding17_size *sizeof(int), user_kernel.group_id(17));
+    HBM_embedding17_bo.write(HBM_embedding17);
+    HBM_embedding17_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding18_bo = xrt::bo(device, HBM_embedding18_size *sizeof(int), user_kernel.group_id(18));
+    HBM_embedding18_bo.write(HBM_embedding18);
+    HBM_embedding18_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding19_bo = xrt::bo(device, HBM_embedding19_size *sizeof(int), user_kernel.group_id(19));
+    HBM_embedding19_bo.write(HBM_embedding19);
+    HBM_embedding19_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding20_bo = xrt::bo(device, HBM_embedding20_size *sizeof(int), user_kernel.group_id(20));
+    HBM_embedding20_bo.write(HBM_embedding20);
+    HBM_embedding20_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding21_bo = xrt::bo(device, HBM_embedding21_size *sizeof(int), user_kernel.group_id(21));
+    HBM_embedding21_bo.write(HBM_embedding21);
+    HBM_embedding21_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding22_bo = xrt::bo(device, HBM_embedding22_size *sizeof(int), user_kernel.group_id(22));
+    HBM_embedding22_bo.write(HBM_embedding22);
+    HBM_embedding22_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding23_bo = xrt::bo(device, HBM_embedding23_size *sizeof(int), user_kernel.group_id(23));
+    HBM_embedding23_bo.write(HBM_embedding23);
+    HBM_embedding23_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    HBM_embedding24_bo = xrt::bo(device, HBM_embedding24_size *sizeof(int), user_kernel.group_id(24));
+    HBM_embedding24_bo.write(HBM_embedding24);
+    HBM_embedding24_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    std::cout << "HBM_embedding allocation Finish" << std::endl; 
+
   } else if (own_role == DLRM_REDUCE_ROOT_ROLE)
   {
     // creates a buffer that can be read by the CCLO
@@ -662,7 +1101,34 @@ void start_test(options_t options) {
   if (own_role == DLRM_EMBED_ROLE)
   {
     unsigned int dst_rank = own_rank - reduce_comm_size;
-    auto run = user_kernel(embed_buf_bo, count, dst_rank, accl->get_communicator_addr(GLOBAL_COMM), accl->get_arithmetic_config_addr({dataType::int32, dataType::int32}));
+    auto run = user_kernel(
+        // embed_buf_bo, 
+        HBM_embedding0_bo,
+        HBM_embedding1_bo,
+        HBM_embedding2_bo,
+        HBM_embedding3_bo,
+        HBM_embedding4_bo,
+        HBM_embedding5_bo,
+        HBM_embedding6_bo,
+        HBM_embedding7_bo,
+        HBM_embedding8_bo,
+        HBM_embedding9_bo,
+        HBM_embedding10_bo,
+        HBM_embedding11_bo,
+        HBM_embedding12_bo,
+        HBM_embedding13_bo,
+        HBM_embedding14_bo,
+        HBM_embedding15_bo,
+        HBM_embedding16_bo,
+        HBM_embedding17_bo,
+        HBM_embedding18_bo,
+        HBM_embedding19_bo,
+        HBM_embedding20_bo,
+        HBM_embedding21_bo,
+        HBM_embedding22_bo,
+        HBM_embedding23_bo,
+        HBM_embedding24_bo,
+        count, dst_rank, accl->get_communicator_addr(GLOBAL_COMM), accl->get_arithmetic_config_addr({dataType::int32, dataType::int32}));
     run.wait(3000);
   }
   // recv and reduce operation for reduce nodes

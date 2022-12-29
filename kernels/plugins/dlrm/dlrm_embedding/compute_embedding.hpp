@@ -26,6 +26,7 @@ void vadd_accl_recv(
     accl_hls::ACCLData &data
 );
 
+template<const int NUM_ZERO_WORD>
 void pad_zero(STREAM<ap_uint<512> >& s_padded_zero);
 
 void consumeData(
@@ -47,6 +48,12 @@ void load_access_idx(
     STREAM<int>& s_idx_buffer_HBM20, STREAM<int>& s_idx_buffer_HBM21,
     STREAM<int>& s_idx_buffer_HBM22, STREAM<int>& s_idx_buffer_HBM23,
     STREAM<int>& s_idx_buffer_HBM24);
+
+void load_access_idx(
+    STREAM<int>& s_idx_buffer_HBM0, STREAM<int>& s_idx_buffer_HBM1, 
+    STREAM<int>& s_idx_buffer_HBM2, STREAM<int>& s_idx_buffer_HBM3, 
+    STREAM<int>& s_idx_buffer_HBM4, STREAM<int>& s_idx_buffer_HBM5, 
+    STREAM<int>& s_idx_buffer_HBM6, STREAM<int>& s_idx_buffer_HBM7);
 
 template<
     const int START_ADDR_0, const int AXI_PADDED_SIZE_0, 
@@ -105,6 +112,12 @@ void gather_embeddings(
     STREAM<ap_uint<512> >& s_embedding_0,
     STREAM<ap_uint<512> >& s_embedding_1,
     STREAM<ap_uint<512> >& s_embedding_2,
+    STREAM<ap_uint<512> >& s_feature_in
+);
+
+template<const int ROW_PER_PE>
+void gather_embeddings(
+    STREAM<ap_uint<512> >& s_embedding_0,
     STREAM<ap_uint<512> >& s_feature_in
 );
 
@@ -2084,13 +2097,12 @@ void vadd_accl_recv(
     }
 }
 
+template<const int NUM_ZERO_WORD>
 void pad_zero(STREAM<ap_uint<512> >& s_padded_zero)
 {
-#pragma HLS dataflow
-
     for (int i = 0; i < BATCH_NUM * BATCH_SIZE; ++i)
     {
-        for (int j = 0; j < 128; ++j)
+        for (int j = 0; j < NUM_ZERO_WORD; ++j)
         {
             #pragma HLS pipeline II=1
             ap_uint<512> s_data = 0;
@@ -2175,6 +2187,39 @@ void load_access_idx(
             s_idx_buffer_HBM22.write(idx);
             s_idx_buffer_HBM23.write(idx);
             s_idx_buffer_HBM24.write(idx);
+        }
+    }
+}
+
+void load_access_idx(
+    STREAM<int>& s_idx_buffer_HBM0, STREAM<int>& s_idx_buffer_HBM1, 
+    STREAM<int>& s_idx_buffer_HBM2, STREAM<int>& s_idx_buffer_HBM3, 
+    STREAM<int>& s_idx_buffer_HBM4, STREAM<int>& s_idx_buffer_HBM5, 
+    STREAM<int>& s_idx_buffer_HBM6, STREAM<int>& s_idx_buffer_HBM7) { 
+
+    int idx_HBM0, idx_HBM1, idx_HBM2, idx_HBM3, 
+        idx_HBM4, idx_HBM5, idx_HBM6, idx_HBM7;
+
+    // batch = 32
+    int idx_random[] = {3, 99, 38, 72, 29, 57, 1, 72, 36, 76, 35, 50, 37, 57, 
+        13, 66, 26, 70, 41, 93, 48, 82, 44, 78, 25, 52, 3, 92, 36, 56, 46, 88};
+
+    writeIndex:
+    for (int i = 0; i < BATCH_NUM; i++) {
+        
+        for (int j = 0; j < BATCH_SIZE; j++) {
+            #pragma HLS pipeline II=1
+
+            int idx = idx_random[j];
+
+            s_idx_buffer_HBM0.write(idx);
+            s_idx_buffer_HBM1.write(idx);
+            s_idx_buffer_HBM2.write(idx);
+            s_idx_buffer_HBM3.write(idx);
+            s_idx_buffer_HBM4.write(idx);
+            s_idx_buffer_HBM5.write(idx);
+            s_idx_buffer_HBM6.write(idx);
+            s_idx_buffer_HBM7.write(idx);
         }
     }
 }
@@ -2574,6 +2619,28 @@ void gather_embeddings(
         for (int i = 0; i < 18; i++){
             #pragma HLS pipeline II=1
             s_feature_in.write(s_embedding_2.read());
+        }
+    }
+}
+
+template<const int ROW_PER_PE>
+void gather_embeddings(
+    STREAM<ap_uint<512> >& s_embedding_0,
+    STREAM<ap_uint<512> >& s_feature_in
+){
+    for_each_item:
+    for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
+        for (int i = 0; i < 16; i++){
+            #pragma HLS pipeline II=1
+            s_feature_in.write(s_embedding_0.read());
+        }
+        for (int i = 0; i < 16; i++){
+            #pragma HLS pipeline II=1
+            s_feature_in.write(0);
+        }
+        for (int i = 0; i < 18; i++){
+            #pragma HLS pipeline II=1
+            s_feature_in.write(0);
         }
     }
 }
@@ -9346,6 +9413,78 @@ void gather_results_node1(
     }
 }
 
+template<const int ROW_PER_PE>
+void gather_results_node1(
+    STREAM<ap_uint<512> > & s_result1_partial_0, STREAM<ap_uint<512> > & s_result_node){
+    for_each_item:
+    for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(s_result1_partial_0.read());
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+    }
+}
+
 void dataTransform(STREAM<ap_uint<512> >& s_embedding_table, STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > & s_padded_zero, STREAM<ap_uint<512> > & s_data_out){
 
     ValidData:
@@ -9356,40 +9495,15 @@ void dataTransform(STREAM<ap_uint<512> >& s_embedding_table, STREAM<ap_uint<512>
             s_data_out.write(s_result_node.read());
         }
 
-        // for (int i = 0; i < 60; i++) {
-        //     #pragma HLS pipeline II=1
-        //     s_data_out.write(s_padded_zero.read()); // padded packet
-        // }
-
-        for (int i = 0; i < 44; i++){
+        for (int i = 0; i < 50; i++){
             #pragma HLS pipeline II=1
             s_data_out.write(s_embedding_table.read());
         }
 
-        for (int i = 0; i < 84; i++) {
+        for (int i = 0; i < 78; i++) {
             #pragma HLS pipeline II=1
             s_data_out.write(s_padded_zero.read()); // padded packet
         }
-
-        // for (int i = 0; i < 192; i++) {
-        //     #pragma HLS pipeline II=1
-        //     if (i < 64) {
-        //         s_data_out.write(s_result_node.read());
-        //     }
-        //     else if (i < 128) {
-        //         s_data_out.write(0);
-        //     }
-        //     else if (i < 188) {
-        //         s_data_out.write(s_embedding_table.read());
-        //     }
-        //     else {
-        //         s_data_out.write(0);
-        //     }
-        // }
-        // for (int i = 0; i < 2; i++) {
-        //     #pragma HLS pipeline II=1
-        //     s_data_out.write(0); // padded packet
-        // }
 
     }
 }

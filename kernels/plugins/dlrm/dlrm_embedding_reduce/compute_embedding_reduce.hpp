@@ -2,12 +2,38 @@
 #include <iostream>
 #include <dlrm.h>
 
-namespace dlrm_reduce_slave_ns {
+namespace dlrm_embedding_reduce_ns {
 
-void recvDataTransform(STREAM<ap_uint<512> > & s_data_in, STREAM<ap_uint<512> > & s_result1_node1_partial, STREAM<ap_uint<512> > & s_result1_node1, STREAM<ap_uint<512> > & s_data_in_zero);
+void vadd_accl_send_stream(
+    STREAM<ap_uint<512> > & s_data_out,
+    int count,
+    unsigned int destination,
+    accl_hls::ACCLCommand &accl,
+    accl_hls::ACCLData &data
+);
+
+void vadd_accl_send(
+    float *src,
+    int count,
+    unsigned int destination,
+    accl_hls::ACCLCommand &accl,
+    accl_hls::ACCLData &data
+);
+
+void vadd_accl_recv(
+    float *dst,
+    int count,
+    accl_hls::ACCLData &data
+);
+
+void pad_zero(STREAM<ap_uint<512> >& s_padded_zero);
+
+void consumeData(
+    STREAM<ap_uint<512> >& s_data_out,
+    int *table_HBM22
+);
 
 void load_access_idx(
-    STREAM<int>& start_flag,
     STREAM<int>& s_idx_buffer_HBM0, STREAM<int>& s_idx_buffer_HBM1, 
     STREAM<int>& s_idx_buffer_HBM2, STREAM<int>& s_idx_buffer_HBM3, 
     STREAM<int>& s_idx_buffer_HBM4, STREAM<int>& s_idx_buffer_HBM5, 
@@ -18,11 +44,19 @@ void load_access_idx(
     STREAM<int>& s_idx_buffer_HBM14, STREAM<int>& s_idx_buffer_HBM15, 
     STREAM<int>& s_idx_buffer_HBM16, STREAM<int>& s_idx_buffer_HBM17, 
     STREAM<int>& s_idx_buffer_HBM18, STREAM<int>& s_idx_buffer_HBM19, 
-    STREAM<int>& s_idx_buffer_HBM20, STREAM<int>& s_idx_buffer_HBM21, 
-    STREAM<int>& s_idx_buffer_HBM22, STREAM<int>& s_idx_buffer_HBM23, 
-    STREAM<int>& s_idx_buffer_HBM24, STREAM<int>& s_idx_buffer_HBM25, 
-    STREAM<int>& s_idx_buffer_HBM26, STREAM<int>& s_idx_buffer_HBM27,
-    STREAM<int>& s_idx_buffer_HBM28, STREAM<int>& s_idx_buffer_HBM29);
+    STREAM<int>& s_idx_buffer_HBM20, STREAM<int>& s_idx_buffer_HBM21,
+    STREAM<int>& s_idx_buffer_HBM22, STREAM<int>& s_idx_buffer_HBM23,
+    STREAM<int>& s_idx_buffer_HBM24);
+
+void load_access_idx(
+    STREAM<int>& s_idx_buffer_HBM0, STREAM<int>& s_idx_buffer_HBM1, 
+    STREAM<int>& s_idx_buffer_HBM2, STREAM<int>& s_idx_buffer_HBM3, 
+    STREAM<int>& s_idx_buffer_HBM4, STREAM<int>& s_idx_buffer_HBM5, 
+    STREAM<int>& s_idx_buffer_HBM6, STREAM<int>& s_idx_buffer_HBM7, 
+    STREAM<int>& s_idx_buffer_HBM8, STREAM<int>& s_idx_buffer_HBM9, 
+    STREAM<int>& s_idx_buffer_HBM10, STREAM<int>& s_idx_buffer_HBM11, 
+    STREAM<int>& s_idx_buffer_HBM12, STREAM<int>& s_idx_buffer_HBM13, 
+    STREAM<int>& s_idx_buffer_HBM14, STREAM<int>& s_idx_buffer_HBM15);
 
 template<
     const int START_ADDR_0, const int AXI_PADDED_SIZE_0, 
@@ -62,19 +96,41 @@ void gather_embeddings_7(
     STREAM<ap_uint<512> >& s_feature_in
 );
 
+template<const int VECTOR_LENGTH_0, const int VECTOR_LENGTH_1, const int VECTOR_LENGTH_2, const int VECTOR_LENGTH_3, const int VECTOR_LENGTH_4, const int VECTOR_LENGTH_5, const int VECTOR_LENGTH_6, const int VECTOR_LENGTH_7, const int VECTOR_LENGTH_8, const int ROW_PER_PE>
+void gather_embeddings_9(
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM0_1, 
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM1_1, 
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM2_1, 
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM3_1, 
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM4_1, 
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM5_1, 
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM6_1, 
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM7_1, 
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM8_1, 
+    STREAM<ap_uint<512> >& s_feature_in
+);
+
 template<const int ROW_PER_PE>
 void gather_embeddings(
     STREAM<ap_uint<512> >& s_embedding_0,
     STREAM<ap_uint<512> >& s_embedding_1,
     STREAM<ap_uint<512> >& s_embedding_2,
-    STREAM<ap_uint<512> >& s_embedding_3,
     STREAM<ap_uint<512> >& s_feature_in
 );
+
+template<const int ROW_PER_PE>
+void gather_embeddings(
+    STREAM<ap_uint<512> >& s_embedding_0,
+    STREAM<ap_uint<512> >& s_embedding_1,
+    STREAM<ap_uint<512> >& s_feature_in
+);
+
 
 template<const int FEATURE_SIZE, const int ROW_PER_PE>
 void store_features(
     STREAM<ap_uint<512> >& s_feature_in,
-    STREAM<ap_uint<512> >& s_feature_out);
+    STREAM<ap_uint<512> >& s_feature_out,
+    STREAM<ap_uint<512> >& s_embedding_table);
 
 void replicate_feature_in(STREAM<ap_uint<512> > & s_feature_in, STREAM<ap_uint<512> > & s_feature_in_0, STREAM<ap_uint<512> > & s_feature_in_1, STREAM<ap_uint<512> > & s_embedding_table);
 
@@ -156,13 +212,13 @@ void matmul_PE_UNROLL8(
     STREAM<D_TYPE>& s_result_PE);
 
 template<>
-void matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(
+void matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(
     STREAM<W_TYPE>& s_feature_PE_0,
     STREAM<W_TYPE>& s_feature_PE_1,
     STREAM<D_TYPE>& s_result_PE);
 
 template<>
-void matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(
+void matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(
     STREAM<W_TYPE>& s_feature_PE_0,
     STREAM<W_TYPE>& s_feature_PE_1,
     STREAM<D_TYPE>& s_result_PE);
@@ -171,10 +227,10 @@ template<const int FEATURE_SIZE, const int ROW_PER_PE, const int INDEX_ROW>
 void init_weights(W_TYPE* weights_transpose); 
 
 template<>
-void init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(W_TYPE* weights_transpose_local);
+void init_weights<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(W_TYPE* weights_transpose_local);
 
 template<>
-void init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(W_TYPE* weights_transpose_local);
+void init_weights<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(W_TYPE* weights_transpose_local);
 
 template<const int FEATURE_SIZE>
 void replicate_feature_512PEs_216PE(
@@ -1882,20 +1938,10 @@ void gather_results_node1(
     STREAM<ap_uint<512> > & s_result1_partial_14, STREAM<ap_uint<512> > & s_result1_partial_15, 
     STREAM<ap_uint<512> > & s_result_node);
 
-template<const int ROW_PER_PE>
-void gather_results_node1(
-    STREAM<ap_uint<512> > & s_result1_partial_0,
-    STREAM<ap_uint<512> > & s_result_node);
 
-void dataTransform(STREAM<ap_uint<512> >& s_result_node_partial, STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > & s_padded_zero, STREAM<ap_uint<512> > & s_data_out);
+void dataTransform(STREAM<ap_uint<512> >& s_embedding_table, STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > & s_padded_zero, STREAM<ap_uint<512> > & s_data_out);
 
 void dataTransform(STREAM<ap_uint<512> > & s_feature_in, STREAM<ap_uint<512> > & s_data_out);
-
-void stream_data_out(STREAM<ap_uint<512> >& s_data_out_buffer, STREAM<ap_uint<512> >& s_data_out);
-
-void pad_zero(STREAM<ap_uint<512> >& s_padded_zero);
-
-void consumeData_zero(STREAM<ap_uint<512> >& s_data_in_zero);
 
 
 
@@ -1967,31 +2013,127 @@ const int depth_s_embedding_buffer_wide_HBM28 = VECTOR_SIZE_HBM_BANK_28 * FIFO_B
 const int depth_s_embedding_buffer_wide_HBM29 = VECTOR_SIZE_HBM_BANK_29 * FIFO_BATCH_SIZE / 4;
 const int depth_s_embedding_buffer_wide_HBM30 = VECTOR_SIZE_HBM_BANK_30 * FIFO_BATCH_SIZE / 4;
 
-void recvDataTransform(STREAM<ap_uint<512> > & s_data_in, STREAM<ap_uint<512> > & s_result1_node1_partial, STREAM<ap_uint<512> > & s_result1_node1, STREAM<ap_uint<512> > & s_data_in_zero){
+void vadd_accl_send_stream(
+    STREAM<ap_uint<512> > & s_data_out,
+    int count,
+    unsigned int destination,
+    accl_hls::ACCLCommand &accl,
+    accl_hls::ACCLData &data
+) {
+    #pragma HLS inline off
+    //read data from src, increment it, 
+    //and push the result into the CCLO stream
+    ap_uint<512> tmpword;
+    ap_uint<32> src[16];
+    int word_count = 0;
+    int rd_count = count;
+    while(rd_count > 0){
+        //read 16 floats into a 512b vector
+        // for(int i=0; (i<16) && (rd_count>0); i++){
+        //     float inc = src[i+16*word_count]+1;
+        //     tmpword(i*32,(i+1)*32-1) = *reinterpret_cast<ap_uint<32>*>(&inc);
+        //     rd_count--;
+        // }
+        //send the vector to cclo
+        tmpword = s_data_out.read();
+        data.push(tmpword, 0);
+        word_count++;
+    }
+    //send command to CCLO
+    //we're passing src as source 
+    //because we're streaming data, the address will be ignored
+    //we're passing 9 as stream ID, because IDs 0-8 are reserved
+    accl.stream_put(count, 9, destination, (ap_uint<64>)src);
 
-    for_each_item:
-    for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
-        
-        for (int i = 0; i < 128; i++){
-            #pragma HLS pipeline II=1
-            s_result1_node1_partial.write(s_data_in.read());
+}
+
+void vadd_accl_send(
+    float *src,
+    int count,
+    unsigned int destination,
+    accl_hls::ACCLCommand &accl,
+    accl_hls::ACCLData &data
+) {
+    #pragma HLS inline off
+    //read data from src, increment it, 
+    //and push the result into the CCLO stream
+    ap_uint<512> tmpword;
+    int word_count = 0;
+    int rd_count = count;
+    while(rd_count > 0){
+        //read 16 floats into a 512b vector
+        for(int i=0; (i<16) && (rd_count>0); i++){
+            float inc = src[i+16*word_count]+1;
+            tmpword(i*32,(i+1)*32-1) = *reinterpret_cast<ap_uint<32>*>(&inc);
+            rd_count--;
         }
+        //send the vector to cclo
+        data.push(tmpword, 0);
+        word_count++;
+    }
+    //send command to CCLO
+    //we're passing src as source 
+    //because we're streaming data, the address will be ignored
+    //we're passing 9 as stream ID, because IDs 0-8 are reserved
+    accl.stream_put(count, 9, destination, (ap_uint<64>)src);
 
-        for (int i = 0; i < 60; i++) {
-            #pragma HLS pipeline II=1
-            s_result1_node1.write(s_data_in.read()); 
+}
+
+void vadd_accl_recv(
+    float *dst,
+    int count,
+    accl_hls::ACCLData &data
+) {
+    #pragma HLS inline off
+    //pull data from CCLO and write it to dst
+    int wr_count = count;
+    int word_count = 0;
+    ap_uint<512> tmpword;
+    while(wr_count > 0){
+        //read vector from CCLO
+        tmpword = data.pull().data;
+        //read from the 512b vector into 16 floats
+        for(int i=0; (i<16) && (wr_count>0); i++){
+            ap_uint<32> val = tmpword(i*32,(i+1)*32-1);
+            dst[i+16*word_count] = *reinterpret_cast<float*>(&val);
+            wr_count--;
         }
+        word_count++;
+    }
+}
 
-        for (int i = 0; i < 4; i++) {
+void pad_zero(STREAM<ap_uint<512> >& s_padded_zero)
+{
+#pragma HLS dataflow
+
+    for (int i = 0; i < BATCH_NUM * BATCH_SIZE; ++i)
+    {
+        for (int j = 0; j < 128; ++j)
+        {
             #pragma HLS pipeline II=1
-            s_data_in_zero.write(s_data_in.read()); // padded packet
+            ap_uint<512> s_data = 0;
+            s_padded_zero.write(s_data);
         }
+    }
+}
 
+
+void consumeData(
+    STREAM<ap_uint<512> >& s_data_out,
+    int *table_HBM22
+) {
+
+    for (int i = 0; i < BATCH_NUM * BATCH_SIZE; i++) {
+        for (int j = 0; j < 192; j++) {
+            #pragma HLS pipeline II=1
+            ap_uint<512> tmp_data = s_data_out.read();
+            ap_uint<32> tmp_data_out = tmp_data(31, 0);
+            table_HBM22[192*i+j] = tmp_data_out;
+        }
     }
 }
 
 void load_access_idx(
-    STREAM<int>& start_flag,
     STREAM<int>& s_idx_buffer_HBM0, STREAM<int>& s_idx_buffer_HBM1, 
     STREAM<int>& s_idx_buffer_HBM2, STREAM<int>& s_idx_buffer_HBM3, 
     STREAM<int>& s_idx_buffer_HBM4, STREAM<int>& s_idx_buffer_HBM5, 
@@ -2002,11 +2144,9 @@ void load_access_idx(
     STREAM<int>& s_idx_buffer_HBM14, STREAM<int>& s_idx_buffer_HBM15, 
     STREAM<int>& s_idx_buffer_HBM16, STREAM<int>& s_idx_buffer_HBM17, 
     STREAM<int>& s_idx_buffer_HBM18, STREAM<int>& s_idx_buffer_HBM19, 
-    STREAM<int>& s_idx_buffer_HBM20, STREAM<int>& s_idx_buffer_HBM21, 
-    STREAM<int>& s_idx_buffer_HBM22, STREAM<int>& s_idx_buffer_HBM23, 
-    STREAM<int>& s_idx_buffer_HBM24, STREAM<int>& s_idx_buffer_HBM25, 
-    STREAM<int>& s_idx_buffer_HBM26, STREAM<int>& s_idx_buffer_HBM27,
-    STREAM<int>& s_idx_buffer_HBM28, STREAM<int>& s_idx_buffer_HBM29) { 
+    STREAM<int>& s_idx_buffer_HBM20, STREAM<int>& s_idx_buffer_HBM21,
+    STREAM<int>& s_idx_buffer_HBM22, STREAM<int>& s_idx_buffer_HBM23,
+    STREAM<int>& s_idx_buffer_HBM24) { 
 
     int idx_HBM0, idx_HBM1, idx_HBM2, idx_HBM3, 
         idx_HBM4, idx_HBM5, idx_HBM6, idx_HBM7, 
@@ -2014,18 +2154,11 @@ void load_access_idx(
         idx_HBM12, idx_HBM13, idx_HBM14, idx_HBM15, 
         idx_HBM16, idx_HBM17, idx_HBM18, idx_HBM19, 
         idx_HBM20, idx_HBM21, idx_HBM22, idx_HBM23, 
-        idx_HBM24, idx_HBM25, idx_HBM26, idx_HBM27,
-        idx_HBM28, idx_HBM29, idx_HBM30;
+        idx_HBM24;
 
     // batch = 32
     int idx_random[] = {3, 99, 38, 72, 29, 57, 1, 72, 36, 76, 35, 50, 37, 57, 
         13, 66, 26, 70, 41, 93, 48, 82, 44, 78, 25, 52, 3, 92, 36, 56, 46, 88};
-
-    // Synchronization:
-    // for (int i = 0; i < 64; i++) {
-    //     #pragma HLS pipeline II=1
-    //     start_flag.write(0); // for synchronization
-    // }
 
     writeIndex:
     for (int i = 0; i < BATCH_NUM; i++) {
@@ -2034,8 +2167,6 @@ void load_access_idx(
             #pragma HLS pipeline II=1
 
             int idx = idx_random[j];
-
-            // start_flag.write(idx);
 
             s_idx_buffer_HBM0.write(idx);
             s_idx_buffer_HBM1.write(idx);
@@ -2062,11 +2193,53 @@ void load_access_idx(
             s_idx_buffer_HBM22.write(idx);
             s_idx_buffer_HBM23.write(idx);
             s_idx_buffer_HBM24.write(idx);
-            s_idx_buffer_HBM25.write(idx);
-            s_idx_buffer_HBM26.write(idx);
-            s_idx_buffer_HBM27.write(idx);
-            s_idx_buffer_HBM28.write(idx);
-            s_idx_buffer_HBM29.write(idx);
+        }
+    }
+}
+
+void load_access_idx(
+    STREAM<int>& s_idx_buffer_HBM0, STREAM<int>& s_idx_buffer_HBM1, 
+    STREAM<int>& s_idx_buffer_HBM2, STREAM<int>& s_idx_buffer_HBM3, 
+    STREAM<int>& s_idx_buffer_HBM4, STREAM<int>& s_idx_buffer_HBM5, 
+    STREAM<int>& s_idx_buffer_HBM6, STREAM<int>& s_idx_buffer_HBM7, 
+    STREAM<int>& s_idx_buffer_HBM8, STREAM<int>& s_idx_buffer_HBM9, 
+    STREAM<int>& s_idx_buffer_HBM10, STREAM<int>& s_idx_buffer_HBM11, 
+    STREAM<int>& s_idx_buffer_HBM12, STREAM<int>& s_idx_buffer_HBM13, 
+    STREAM<int>& s_idx_buffer_HBM14, STREAM<int>& s_idx_buffer_HBM15) { 
+
+    int idx_HBM0, idx_HBM1, idx_HBM2, idx_HBM3, 
+        idx_HBM4, idx_HBM5, idx_HBM6, idx_HBM7, 
+        idx_HBM8, idx_HBM9, idx_HBM10, idx_HBM11, 
+        idx_HBM12, idx_HBM13, idx_HBM14, idx_HBM15;
+
+    // batch = 32
+    int idx_random[] = {3, 99, 38, 72, 29, 57, 1, 72, 36, 76, 35, 50, 37, 57, 
+        13, 66, 26, 70, 41, 93, 48, 82, 44, 78, 25, 52, 3, 92, 36, 56, 46, 88};
+
+    writeIndex:
+    for (int i = 0; i < BATCH_NUM; i++) {
+        
+        for (int j = 0; j < BATCH_SIZE; j++) {
+            #pragma HLS pipeline II=1
+
+            int idx = idx_random[j];
+
+            s_idx_buffer_HBM0.write(idx);
+            s_idx_buffer_HBM1.write(idx);
+            s_idx_buffer_HBM2.write(idx);
+            s_idx_buffer_HBM3.write(idx);
+            s_idx_buffer_HBM4.write(idx);
+            s_idx_buffer_HBM5.write(idx);
+            s_idx_buffer_HBM6.write(idx);
+            s_idx_buffer_HBM7.write(idx);
+            s_idx_buffer_HBM8.write(idx);
+            s_idx_buffer_HBM9.write(idx);
+            s_idx_buffer_HBM10.write(idx);
+            s_idx_buffer_HBM11.write(idx);
+            s_idx_buffer_HBM12.write(idx);
+            s_idx_buffer_HBM13.write(idx);
+            s_idx_buffer_HBM14.write(idx);
+            s_idx_buffer_HBM15.write(idx);
         }
     }
 }
@@ -2147,7 +2320,7 @@ void gather_embeddings_8(
 ) {
 #pragma HLS inline off
 
-    std::cout << "gather_embeddings_8: " << std::endl;
+    // std::cout << "gather_embeddings_8: " << std::endl;
     int count = 0;
 
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
@@ -2233,7 +2406,7 @@ void gather_embeddings_8(
             reg0.range(511, 384) = s_embedding_buffer_wide_HBM7_1.read();
             s_feature_in.write(reg0);
         }
-        std::cout << "      count: " << count << std::endl;
+        // std::cout << "      count: " << count << std::endl;
     }
     
 }
@@ -2251,7 +2424,7 @@ void gather_embeddings_7(
 ) {
 #pragma HLS inline off
 
-    std::cout << "gather_embeddings_8: " << std::endl;
+    // std::cout << "gather_embeddings_8: " << std::endl;
     int count = 0;
 
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
@@ -2326,7 +2499,122 @@ void gather_embeddings_7(
             reg0.range(511, 384) = s_embedding_buffer_wide_HBM6_1.read();
             s_feature_in.write(reg0);
         }
-        std::cout << "      count: " << count << std::endl;
+        // std::cout << "      count: " << count << std::endl;
+    }
+    
+}
+
+template<const int VECTOR_LENGTH_0, const int VECTOR_LENGTH_1, const int VECTOR_LENGTH_2, const int VECTOR_LENGTH_3, const int VECTOR_LENGTH_4, const int VECTOR_LENGTH_5, const int VECTOR_LENGTH_6, const int VECTOR_LENGTH_7, const int VECTOR_LENGTH_8, const int ROW_PER_PE>
+void gather_embeddings_9(
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM0_1, 
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM1_1, 
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM2_1, 
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM3_1, 
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM4_1, 
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM5_1, 
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM6_1, 
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM7_1, 
+    STREAM<W_TYPE>& s_embedding_buffer_wide_HBM8_1, 
+    STREAM<ap_uint<512> >& s_feature_in
+) {
+#pragma HLS inline off
+
+    // std::cout << "gather_embeddings_8: " << std::endl;
+    int count = 0;
+
+    for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
+        
+        for (int i = 0; i < VECTOR_LENGTH_0 / INTS_PER_W / 4; i++) {
+            #pragma HLS pipeline II=4
+            count++;
+            ap_uint<512> reg0;
+            reg0.range(127, 0) = s_embedding_buffer_wide_HBM0_1.read();
+            reg0.range(255, 128) = s_embedding_buffer_wide_HBM0_1.read();
+            reg0.range(383, 256) = s_embedding_buffer_wide_HBM0_1.read();
+            reg0.range(511, 384) = s_embedding_buffer_wide_HBM0_1.read();
+            s_feature_in.write(reg0);
+        }
+        for (int i = 0; i < VECTOR_LENGTH_1 / INTS_PER_W / 4; i++) {
+            #pragma HLS pipeline II=4
+            count++;
+            ap_uint<512> reg0;
+            reg0.range(127, 0) = s_embedding_buffer_wide_HBM1_1.read();
+            reg0.range(255, 128) = s_embedding_buffer_wide_HBM1_1.read();
+            reg0.range(383, 256) = s_embedding_buffer_wide_HBM1_1.read();
+            reg0.range(511, 384) = s_embedding_buffer_wide_HBM1_1.read();
+            s_feature_in.write(reg0);
+        }
+        for (int i = 0; i < VECTOR_LENGTH_2 / INTS_PER_W / 4; i++) {
+            #pragma HLS pipeline II=4
+            count++;
+            ap_uint<512> reg0;
+            reg0.range(127, 0) = s_embedding_buffer_wide_HBM2_1.read();
+            reg0.range(255, 128) = s_embedding_buffer_wide_HBM2_1.read();
+            reg0.range(383, 256) = s_embedding_buffer_wide_HBM2_1.read();
+            reg0.range(511, 384) = s_embedding_buffer_wide_HBM2_1.read();
+            s_feature_in.write(reg0);
+        }
+        for (int i = 0; i < VECTOR_LENGTH_3 / INTS_PER_W / 4; i++) {
+            #pragma HLS pipeline II=4
+            count++;
+            ap_uint<512> reg0;
+            reg0.range(127, 0) = s_embedding_buffer_wide_HBM3_1.read();
+            reg0.range(255, 128) = s_embedding_buffer_wide_HBM3_1.read();
+            reg0.range(383, 256) = s_embedding_buffer_wide_HBM3_1.read();
+            reg0.range(511, 384) = s_embedding_buffer_wide_HBM3_1.read();
+            s_feature_in.write(reg0);
+        }
+        for (int i = 0; i < VECTOR_LENGTH_4 / INTS_PER_W / 4; i++) {
+            #pragma HLS pipeline II=4
+            count++;
+            ap_uint<512> reg0;
+            reg0.range(127, 0) = s_embedding_buffer_wide_HBM4_1.read();
+            reg0.range(255, 128) = s_embedding_buffer_wide_HBM4_1.read();
+            reg0.range(383, 256) = s_embedding_buffer_wide_HBM4_1.read();
+            reg0.range(511, 384) = s_embedding_buffer_wide_HBM4_1.read();
+            s_feature_in.write(reg0);
+        }
+        for (int i = 0; i < VECTOR_LENGTH_5 / INTS_PER_W / 4; i++) {
+            #pragma HLS pipeline II=4
+            count++;
+            ap_uint<512> reg0;
+            reg0.range(127, 0) = s_embedding_buffer_wide_HBM5_1.read();
+            reg0.range(255, 128) = s_embedding_buffer_wide_HBM5_1.read();
+            reg0.range(383, 256) = s_embedding_buffer_wide_HBM5_1.read();
+            reg0.range(511, 384) = s_embedding_buffer_wide_HBM5_1.read();
+            s_feature_in.write(reg0);
+        }
+        for (int i = 0; i < VECTOR_LENGTH_6 / INTS_PER_W / 4; i++) {
+            #pragma HLS pipeline II=4
+            count++;
+            ap_uint<512> reg0;
+            reg0.range(127, 0) = s_embedding_buffer_wide_HBM6_1.read();
+            reg0.range(255, 128) = s_embedding_buffer_wide_HBM6_1.read();
+            reg0.range(383, 256) = s_embedding_buffer_wide_HBM6_1.read();
+            reg0.range(511, 384) = s_embedding_buffer_wide_HBM6_1.read();
+            s_feature_in.write(reg0);
+        }
+        for (int i = 0; i < VECTOR_LENGTH_7 / INTS_PER_W / 4; i++) {
+            #pragma HLS pipeline II=4
+            count++;
+            ap_uint<512> reg0;
+            reg0.range(127, 0) = s_embedding_buffer_wide_HBM7_1.read();
+            reg0.range(255, 128) = s_embedding_buffer_wide_HBM7_1.read();
+            reg0.range(383, 256) = s_embedding_buffer_wide_HBM7_1.read();
+            reg0.range(511, 384) = s_embedding_buffer_wide_HBM7_1.read();
+            s_feature_in.write(reg0);
+        }
+        for (int i = 0; i < VECTOR_LENGTH_8 / INTS_PER_W / 4; i++) {
+            #pragma HLS pipeline II=4
+            count++;
+            ap_uint<512> reg0;
+            reg0.range(127, 0) = s_embedding_buffer_wide_HBM8_1.read();
+            reg0.range(255, 128) = s_embedding_buffer_wide_HBM8_1.read();
+            reg0.range(383, 256) = s_embedding_buffer_wide_HBM8_1.read();
+            reg0.range(511, 384) = s_embedding_buffer_wide_HBM8_1.read();
+            s_feature_in.write(reg0);
+        }
+        // std::cout << "      count: " << count << std::endl;
     }
     
 }
@@ -2336,7 +2624,6 @@ void gather_embeddings(
     STREAM<ap_uint<512> >& s_embedding_0,
     STREAM<ap_uint<512> >& s_embedding_1,
     STREAM<ap_uint<512> >& s_embedding_2,
-    STREAM<ap_uint<512> >& s_embedding_3,
     STREAM<ap_uint<512> >& s_feature_in
 ){
     for_each_item:
@@ -2349,13 +2636,28 @@ void gather_embeddings(
             #pragma HLS pipeline II=1
             s_feature_in.write(s_embedding_1.read());
         }
-        for (int i = 0; i < 14; i++){
+        for (int i = 0; i < 18; i++){
             #pragma HLS pipeline II=1
             s_feature_in.write(s_embedding_2.read());
         }
-        for (int i = 0; i < 14; i++){
+    }
+}
+
+template<const int ROW_PER_PE>
+void gather_embeddings(
+    STREAM<ap_uint<512> >& s_embedding_0,
+    STREAM<ap_uint<512> >& s_embedding_1,
+    STREAM<ap_uint<512> >& s_feature_in
+){
+    for_each_item:
+    for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
+        for (int i = 0; i < 16; i++){
             #pragma HLS pipeline II=1
-            s_feature_in.write(s_embedding_3.read());
+            s_feature_in.write(s_embedding_0.read());
+        }
+        for (int i = 0; i < 16; i++){
+            #pragma HLS pipeline II=1
+            s_feature_in.write(s_embedding_1.read());
         }
     }
 }
@@ -2363,7 +2665,8 @@ void gather_embeddings(
 template<const int FEATURE_SIZE, const int ROW_PER_PE>
 void store_features(
     STREAM<ap_uint<512> >& s_feature_in,
-    STREAM<ap_uint<512> >& s_feature_out)
+    STREAM<ap_uint<512> >& s_feature_out,
+    STREAM<ap_uint<512> >& s_embedding_table)
 {
 
     ap_uint<512> features_local[FEATURE_SIZE / INTS_PER_W / 4];
@@ -2376,7 +2679,7 @@ void store_features(
             #pragma HLS pipeline II=1
             ap_uint<512> tmp_data = s_feature_in.read();
             features_local[i] = tmp_data;
-            // s_embedding_table.write(tmp_data);
+            s_embedding_table.write(tmp_data);
         }
         features_out:
         for (int i = 0; i < ROW_PER_PE; i++) {
@@ -2392,7 +2695,7 @@ void store_features(
 void replicate_feature_in(STREAM<ap_uint<512> > & s_feature_in, STREAM<ap_uint<512> > & s_feature_in_0, STREAM<ap_uint<512> > & s_feature_in_1, STREAM<ap_uint<512> > & s_embedding_table){
     for_each_item:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
-        for (int i = 0; i < SLAVE_INPUT_SIZE / INTS_PER_W / 4; i++){
+        for (int i = 0; i < EMBEDDING_INPUT_SIZE / INTS_PER_W / 4; i++){
             #pragma HLS pipeline II=1
             ap_uint<512> s_data = s_feature_in.read();
             s_feature_in_0.write(s_data);
@@ -2411,7 +2714,7 @@ void replicate_feature_in_4(
 {
     for_each_item:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
-        for (int i = 0; i < SLAVE_INPUT_SIZE / INTS_PER_W / 4; i++){
+        for (int i = 0; i < EMBEDDING_INPUT_SIZE / INTS_PER_W / 4; i++){
             #pragma HLS pipeline II=1
             ap_uint<512> s_data = s_feature_in.read();
             s_feature_in_0.write(s_data);
@@ -2433,7 +2736,7 @@ void replicate_feature_in_6(
 {
     for_each_item:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
-        for (int i = 0; i < SLAVE_INPUT_SIZE / INTS_PER_W / 4; i++){
+        for (int i = 0; i < EMBEDDING_INPUT_SIZE / INTS_PER_W / 4; i++){
             #pragma HLS pipeline II=1
             ap_uint<512> s_data = s_feature_in.read();
             s_feature_in_0.write(s_data);
@@ -2458,7 +2761,7 @@ void replicate_feature_in_7(
 {
     for_each_item:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
-        for (int i = 0; i < SLAVE_INPUT_SIZE / INTS_PER_W / 4; i++){
+        for (int i = 0; i < EMBEDDING_INPUT_SIZE / INTS_PER_W / 4; i++){
             #pragma HLS pipeline II=1
             ap_uint<512> s_data = s_feature_in.read();
             s_feature_in_0.write(s_data);
@@ -2485,7 +2788,7 @@ void replicate_feature_in_8(
 {
     for_each_item:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
-        for (int i = 0; i < SLAVE_INPUT_SIZE / INTS_PER_W / 4; i++){
+        for (int i = 0; i < EMBEDDING_INPUT_SIZE / INTS_PER_W / 4; i++){
             #pragma HLS pipeline II=1
             ap_uint<512> s_data = s_feature_in.read();
             s_feature_in_0.write(s_data);
@@ -2515,7 +2818,7 @@ void replicate_feature_in_13(
 {
     for_each_item:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
-        for (int i = 0; i < SLAVE_INPUT_SIZE / INTS_PER_W / 4; i++){
+        for (int i = 0; i < EMBEDDING_INPUT_SIZE / INTS_PER_W / 4; i++){
             #pragma HLS pipeline II=1
             ap_uint<512> s_data = s_feature_in.read();
             s_feature_in_0.write(s_data);
@@ -2556,7 +2859,7 @@ void replicate_feature_in_26(
 {
     for_each_item:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
-        for (int i = 0; i < SLAVE_INPUT_SIZE / INTS_PER_W / 4; i++){
+        for (int i = 0; i < EMBEDDING_INPUT_SIZE / INTS_PER_W / 4; i++){
             #pragma HLS pipeline II=1
             ap_uint<512> s_data = s_feature_in.read();
             s_feature_in_0.write(s_data);
@@ -5649,34 +5952,34 @@ void replicate_feature_512PEs_29PE(
 }
 
 template<>
-void matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(
+void matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(
     STREAM<W_TYPE>& s_feature_PE_0,
     STREAM<W_TYPE>& s_feature_PE_1,
     STREAM<D_TYPE>& s_result_PE) {
 #pragma HLS inline off
 
-    W_TYPE weights_transpose_local[SLAVE_ROW_PER_PE1 * SLAVE_INPUT_SIZE / INTS_PER_W];
+    W_TYPE weights_transpose_local[EMBEDDING_ROW_PER_PE1 * EMBEDDING_INPUT_SIZE / INTS_PER_W];
 #pragma HLS resource variable=weights_transpose_local core=RAM_2P_BRAM
 
-    init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(weights_transpose_local);
+    init_weights<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(weights_transpose_local);
 
     item_loop:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
 
         row_loop:
-        for (int result_idx = 0; result_idx < SLAVE_ROW_PER_PE1; result_idx++) {
+        for (int result_idx = 0; result_idx < EMBEDDING_ROW_PER_PE1; result_idx++) {
             
             D_TYPE result = 0;
             dot_product:
             // NOTE: manually unroll 2 here
-            for (int d = 0; d < SLAVE_INPUT_SIZE / INTS_PER_W / 2; d++) {
+            for (int d = 0; d < EMBEDDING_INPUT_SIZE / INTS_PER_W / 2; d++) {
                 #pragma HLS pipeline II=1
                 W_TYPE reg_f_0 = s_feature_PE_0.read();
                 W_TYPE reg_f_1 = s_feature_PE_1.read();
                 W_TYPE reg_w_0 = weights_transpose_local[
-                    result_idx * SLAVE_INPUT_SIZE / INTS_PER_W / 2 + 2 * d];
+                    result_idx * EMBEDDING_INPUT_SIZE / INTS_PER_W / 2 + 2 * d];
                 W_TYPE reg_w_1 = weights_transpose_local[
-                    result_idx * SLAVE_INPUT_SIZE / INTS_PER_W / 2 + 2 * d + 1];
+                    result_idx * EMBEDDING_INPUT_SIZE / INTS_PER_W / 2 + 2 * d + 1];
 
                 D_TYPE first_f_0 = reg_f_0.range(31, 0);
                 D_TYPE second_f_0 = reg_f_0.range(63, 32);
@@ -5711,34 +6014,34 @@ void matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(
 } 
 
 template<>
-void matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(
+void matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(
     STREAM<W_TYPE>& s_feature_PE_0,
     STREAM<W_TYPE>& s_feature_PE_1,
     STREAM<D_TYPE>& s_result_PE) {
 #pragma HLS inline off
 
-    W_TYPE weights_transpose_local[SLAVE_ROW_PER_PE1 * SLAVE_INPUT_SIZE / INTS_PER_W];
+    W_TYPE weights_transpose_local[EMBEDDING_ROW_PER_PE1 * EMBEDDING_INPUT_SIZE / INTS_PER_W];
 #pragma HLS resource variable=weights_transpose_local core=RAM_2P_URAM
 
-    init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(weights_transpose_local);
+    init_weights<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(weights_transpose_local);
 
     item_loop:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
 
         row_loop:
-        for (int result_idx = 0; result_idx < SLAVE_ROW_PER_PE1; result_idx++) {
+        for (int result_idx = 0; result_idx < EMBEDDING_ROW_PER_PE1; result_idx++) {
             
             D_TYPE result = 0;
             dot_product:
             // NOTE: manually unroll 2 here
-            for (int d = 0; d < SLAVE_INPUT_SIZE / INTS_PER_W / 2; d++) {
+            for (int d = 0; d < EMBEDDING_INPUT_SIZE / INTS_PER_W / 2; d++) {
                 #pragma HLS pipeline II=1
                 W_TYPE reg_f_0 = s_feature_PE_0.read();
                 W_TYPE reg_f_1 = s_feature_PE_1.read();
                 W_TYPE reg_w_0 = weights_transpose_local[
-                    result_idx * SLAVE_INPUT_SIZE / INTS_PER_W / 2 + 2 * d];
+                    result_idx * EMBEDDING_INPUT_SIZE / INTS_PER_W / 2 + 2 * d];
                 W_TYPE reg_w_1 = weights_transpose_local[
-                    result_idx * SLAVE_INPUT_SIZE / INTS_PER_W / 2 + 2 * d + 1];
+                    result_idx * EMBEDDING_INPUT_SIZE / INTS_PER_W / 2 + 2 * d + 1];
 
                 D_TYPE first_f_0 = reg_f_0.range(31, 0);
                 D_TYPE second_f_0 = reg_f_0.range(63, 32);
@@ -5773,9 +6076,9 @@ void matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(
 } 
 
 template<>
-void init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(W_TYPE* weights_transpose_local) {
+void init_weights<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(W_TYPE* weights_transpose_local) {
 
-    D_TYPE row_template_even[SLAVE_INPUT_SIZE] = 
+    D_TYPE row_template_even[EMBEDDING_INPUT_SIZE] = 
       { 0,  0,  0,  0,  0,  0,  0, -1,  0,  1,  0,  0, -1,  0,  0,  0, 
         1,  0,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
        -1,  0,  0,  0,  0,  0,  0,  0, -1,  0, -1,  0,  0, -1,  0,  0, 
@@ -5809,7 +6112,7 @@ void init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(W_TYPE* weig
         };
 
     // load weights, convert to wide type
-    for (int i = 0; i < SLAVE_INPUT_SIZE / INTS_PER_W; i++) {
+    for (int i = 0; i < EMBEDDING_INPUT_SIZE / INTS_PER_W; i++) {
         #pragma HLS pipeline II=1
         W_TYPE reg_even;
         reg_even.range(31, 0) = row_template_even[INTS_PER_W * i];
@@ -5823,9 +6126,9 @@ void init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(W_TYPE* weig
 }
 
 template<>
-void init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(W_TYPE* weights_transpose_local) {
+void init_weights<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(W_TYPE* weights_transpose_local) {
 
-    D_TYPE row_template_odd[SLAVE_INPUT_SIZE] = 
+    D_TYPE row_template_odd[EMBEDDING_INPUT_SIZE] = 
       { 1,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1,  0, 
         1,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
         0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0, -1, -1,  0, 
@@ -5859,7 +6162,7 @@ void init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(W_TYPE* weig
         };
 
     // load weights, convert to wide type
-    for (int i = 0; i < SLAVE_INPUT_SIZE / INTS_PER_W; i++) {
+    for (int i = 0; i < EMBEDDING_INPUT_SIZE / INTS_PER_W; i++) {
         #pragma HLS pipeline II=1
         W_TYPE reg_odd;
         reg_odd.range(31, 0) = row_template_odd[INTS_PER_W * i];
@@ -9127,106 +9430,50 @@ void gather_results_node1(
     }
 }
 
-template<const int ROW_PER_PE>
-void gather_results_node1(
-    STREAM<ap_uint<512> > & s_result1_partial_0,
-    STREAM<ap_uint<512> > & s_result_node)
-{
-    for_each_item:
-    for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
-        for (int i = 0; i < 2 * ROW_PER_PE; i++){
-            #pragma HLS pipeline II=1
-            s_result_node.write(s_result1_partial_0.read());
-        }
-        for (int i = 0; i < 2 * ROW_PER_PE; i++){
-            #pragma HLS pipeline II=1
-            s_result_node.write(0);
-        }
-        for (int i = 0; i < 2 * ROW_PER_PE; i++){
-            #pragma HLS pipeline II=1
-            s_result_node.write(0);
-        }
-        for (int i = 0; i < 2 * ROW_PER_PE; i++){
-            #pragma HLS pipeline II=1
-            s_result_node.write(0);
-        }
-        for (int i = 0; i < 2 * ROW_PER_PE; i++){
-            #pragma HLS pipeline II=1
-            s_result_node.write(0);
-        }
-        for (int i = 0; i < 2 * ROW_PER_PE; i++){
-            #pragma HLS pipeline II=1
-            s_result_node.write(0);
-        }
-        for (int i = 0; i < 2 * ROW_PER_PE; i++){
-            #pragma HLS pipeline II=1
-            s_result_node.write(0);
-        }
-        for (int i = 0; i < 2 * ROW_PER_PE; i++){
-            #pragma HLS pipeline II=1
-            s_result_node.write(0);
-        }
-        for (int i = 0; i < 2 * ROW_PER_PE; i++){
-            #pragma HLS pipeline II=1
-            s_result_node.write(0);
-        }
-        for (int i = 0; i < 2 * ROW_PER_PE; i++){
-            #pragma HLS pipeline II=1
-            s_result_node.write(0);
-        }
-        for (int i = 0; i < 2 * ROW_PER_PE; i++){
-            #pragma HLS pipeline II=1
-            s_result_node.write(0);
-        }
-        for (int i = 0; i < 2 * ROW_PER_PE; i++){
-            #pragma HLS pipeline II=1
-            s_result_node.write(0);
-        }
-        for (int i = 0; i < 2 * ROW_PER_PE; i++){
-            #pragma HLS pipeline II=1
-            s_result_node.write(0);
-        }
-        for (int i = 0; i < 2 * ROW_PER_PE; i++){
-            #pragma HLS pipeline II=1
-            s_result_node.write(0);
-        }
-        for (int i = 0; i < 2 * ROW_PER_PE; i++){
-            #pragma HLS pipeline II=1
-            s_result_node.write(0);
-        }
-        for (int i = 0; i < 2 * ROW_PER_PE; i++){
-            #pragma HLS pipeline II=1
-            s_result_node.write(0);
-        }
-    }
-}
-
-void dataTransform(STREAM<ap_uint<512> > & s_result_node_partial, STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > & s_padded_zero, STREAM<ap_uint<512> > & s_data_out){
+void dataTransform(STREAM<ap_uint<512> >& s_embedding_table, STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > & s_padded_zero, STREAM<ap_uint<512> > & s_data_out){
 
     ValidData:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
 
-        for (int i = 0; i < 64; i++) {
-            #pragma HLS pipeline II=1
-            s_data_out.write(s_result_node_partial.read()); 
-        }
-
         for (int i = 0; i < 64; i++){
             #pragma HLS pipeline II=1
-            ap_uint<512> tmp_data_0 = s_result_node_partial.read();
-            ap_uint<512> tmp_data_1 = s_result_node.read();
-            ap_uint<512> tmp_data_out;
-            for (int j = 0; j < 16; j++) {
-                #pragma HLS unroll
-                tmp_data_out(32*j+31, 32*j) = tmp_data_0(32*j+31, 32*j) + tmp_data_1(32*j+31, 32*j);
-            }
-            s_data_out.write(tmp_data_out);
+            s_data_out.write(s_result_node.read());
         }
 
-        for (int i = 0; i < 64; i++) {
+        // for (int i = 0; i < 60; i++) {
+        //     #pragma HLS pipeline II=1
+        //     s_data_out.write(s_padded_zero.read()); // padded packet
+        // }
+
+        for (int i = 0; i < 44; i++){
+            #pragma HLS pipeline II=1
+            s_data_out.write(s_embedding_table.read());
+        }
+
+        for (int i = 0; i < 84; i++) {
             #pragma HLS pipeline II=1
             s_data_out.write(s_padded_zero.read()); // padded packet
         }
+
+        // for (int i = 0; i < 192; i++) {
+        //     #pragma HLS pipeline II=1
+        //     if (i < 64) {
+        //         s_data_out.write(s_result_node.read());
+        //     }
+        //     else if (i < 128) {
+        //         s_data_out.write(0);
+        //     }
+        //     else if (i < 188) {
+        //         s_data_out.write(s_embedding_table.read());
+        //     }
+        //     else {
+        //         s_data_out.write(0);
+        //     }
+        // }
+        // for (int i = 0; i < 2; i++) {
+        //     #pragma HLS pipeline II=1
+        //     s_data_out.write(0); // padded packet
+        // }
 
     }
 }
@@ -9250,45 +9497,5 @@ void dataTransform(STREAM<ap_uint<512> > & s_feature_in, STREAM<ap_uint<512> > &
     }
 }
 
-
-void stream_data_out(STREAM<ap_uint<512> >& s_data_out_buffer, STREAM<ap_uint<512> >& s_data_out)
-{
-    stream_data_out:
-    for (int i = 0; i < BATCH_NUM * BATCH_SIZE; ++i)
-    {
-        for (int j = 0; j < 192; ++j)
-        {
-            #pragma HLS pipeline II=1
-            s_data_out.write(s_data_out_buffer.read());
-        }
-    }
 }
 
-void pad_zero(STREAM<ap_uint<512> >& s_padded_zero)
-{
-    for (int i = 0; i < BATCH_NUM * BATCH_SIZE; ++i)
-    {
-        for (int j = 0; j < 64; ++j)
-        {
-            #pragma HLS pipeline II=1
-            ap_uint<512> s_data = 0;
-            s_padded_zero.write(s_data);
-        }
-    }
-}
-
-void consumeData_zero(
-    STREAM<ap_uint<512> >& s_data_in_zero
-) {
-
-    for (int i = 0; i < BATCH_NUM * BATCH_SIZE; ++i)
-    {
-        for (int j = 0; j < 4; ++j)
-        {
-            #pragma HLS pipeline II=1
-            s_data_in_zero.read();
-        }
-    }
-}
-
-}

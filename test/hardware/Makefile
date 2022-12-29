@@ -60,6 +60,9 @@ DLRM_EMBEDDING_XO=../../kernels/plugins/dlrm/dlrm_embedding/dlrm_embedding.xo
 DLRM_REDUCE_SLAVE_XO=../../kernels/plugins/dlrm/dlrm_reduce_slave/dlrm_reduce_slave.xo
 DLRM_REDUCE_ROOT_XO=../../kernels/plugins/dlrm/dlrm_reduce_root/dlrm_reduce_root.xo
 DLRM_AGG_XO=../../kernels/plugins/dlrm/dlrm_agg/dlrm_agg.xo
+DLRM_EMBEDDING_REDUCE_XO=../../kernels/plugins/dlrm/dlrm_embedding_reduce/dlrm_embedding_reduce.xo
+HW_BENCH_XO=../../kernels/plugins/hw_bench/hw_bench.xo
+COLLECTOR_XO=../../kernels/plugins/collector/collector.xo
 
 ARITHMETIC_XO = $(SUM_XO) $(COMPRESSION_XO)
 
@@ -150,6 +153,7 @@ else ifeq (tcp_dlrm_embedding, $(MODE))
 	CCLO_EN_DMA = 1
 	CCLO_EN_ARITH = 1
 	CCLO_EN_COMPRESS = 0
+	FREQUENCY = 115
 else ifeq (tcp_dlrm_reduce_slave, $(MODE))
 	CMAC_TCP_XO=Vitis_with_100Gbps_TCP-IP/_x.hw.$(XSA)/cmac_krnl.xo
 	NET_XO = $(TCP_XO) $(CMAC_TCP_XO)
@@ -162,6 +166,7 @@ else ifeq (tcp_dlrm_reduce_slave, $(MODE))
 	CCLO_EN_DMA = 1
 	CCLO_EN_ARITH = 1
 	CCLO_EN_COMPRESS = 0
+	FREQUENCY = 115
 else ifeq (tcp_dlrm_reduce_root, $(MODE))
 	CMAC_TCP_XO=Vitis_with_100Gbps_TCP-IP/_x.hw.$(XSA)/cmac_krnl.xo
 	NET_XO = $(TCP_XO) $(CMAC_TCP_XO)
@@ -174,10 +179,11 @@ else ifeq (tcp_dlrm_reduce_root, $(MODE))
 	CCLO_EN_DMA = 1
 	CCLO_EN_ARITH = 1
 	CCLO_EN_COMPRESS = 0
+	FREQUENCY = 115
 else ifeq (tcp_dlrm_agg, $(MODE))
 	CMAC_TCP_XO=Vitis_with_100Gbps_TCP-IP/_x.hw.$(XSA)/cmac_krnl.xo
 	NET_XO = $(TCP_XO) $(CMAC_TCP_XO)
-	OTHER_XO = $(LOOPBACK_XO) $(DLRM_AGG_XO)
+	OTHER_XO = $(LOOPBACK_XO) $(DLRM_AGG_XO) $(COLLECTOR_XO) $(HW_BENCH_XO)
 	ARITHMETIC_XO = $(SUM_XO)
 	CONFIG += --advanced.param compiler.userPostSysLinkOverlayTcl=$(shell pwd)/Vitis_with_100Gbps_TCP-IP/scripts/post_sys_link.tcl
 	CONFIG += --user_ip_repo_paths Vitis_with_100Gbps_TCP-IP/build/fpga-network-stack/iprepo
@@ -186,6 +192,20 @@ else ifeq (tcp_dlrm_agg, $(MODE))
 	CCLO_EN_DMA = 1
 	CCLO_EN_ARITH = 1
 	CCLO_EN_COMPRESS = 0
+	FREQUENCY = 115
+else ifeq (tcp_dlrm_embedding_reduce, $(MODE))
+	CMAC_TCP_XO=Vitis_with_100Gbps_TCP-IP/_x.hw.$(XSA)/cmac_krnl.xo
+	NET_XO = $(TCP_XO) $(CMAC_TCP_XO)
+	OTHER_XO = $(LOOPBACK_XO) $(DLRM_EMBEDDING_REDUCE_XO)
+	ARITHMETIC_XO = $(SUM_XO)
+	CONFIG += --advanced.param compiler.userPostSysLinkOverlayTcl=$(shell pwd)/Vitis_with_100Gbps_TCP-IP/scripts/post_sys_link.tcl
+	CONFIG += --user_ip_repo_paths Vitis_with_100Gbps_TCP-IP/build/fpga-network-stack/iprepo
+	CCLO_STACK_TYPE = TCP
+	CCLO_EN_FANIN = 1
+	CCLO_EN_DMA = 1
+	CCLO_EN_ARITH = 1
+	CCLO_EN_COMPRESS = 0
+	FREQUENCY = 115
 else
 	$(error Unsupported MODE)
 endif

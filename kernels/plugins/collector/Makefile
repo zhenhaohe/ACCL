@@ -1,6 +1,5 @@
-
 # /*******************************************************************************
-#  Copyright (C) 2021 Xilinx, Inc
+#  Copyright (C) 2021 Advanced Micro Devices, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -16,24 +15,12 @@
 #
 # *******************************************************************************/
 
-DLRM_IPS = dlrm_agg dlrm_embedding dlrm_reduce_slave dlrm_reduce_root dlrm_embedding_reduce
+DEVICE=xcu250-figd2104-2L-e
+COLLECTOR_IP=collector.xo
 TARGET=ip
-PLATFORM ?= xilinx_u280_xdma_201920_3
-DEBUG ?= none
 
-ifeq (u250,$(findstring u250, $(PLATFORM)))
-	FPGAPART=xcu250-figd2104-2L-e
-else ifeq (u280,$(findstring u280, $(PLATFORM)))
-	FPGAPART=xcu280-fsvh2892-2L-e
-else ifeq (u55c,$(findstring u55c, $(PLATFORM)))
-	FPGAPART=xcu55c-fsvh2892-2L-e
-else
-	$(error Unsupported PLATFORM)
-endif
+all: $(COLLECTOR_IP) 
 
-all: $(DLRM_IPS)
+$(COLLECTOR_IP): build_collector.tcl collector.cpp
+	vitis_hls $< -tclargs $(TARGET) $(DEVICE)
 
-.PHONY: dlrm_agg dlrm_embedding dlrm_reduce_slave dlrm_reduce_root dlrm_embedding_reduce
-
-$(DLRM_IPS):
-	$(MAKE) -C $@ DEVICE=$(FPGAPART) TARGET=$(TARGET)

@@ -1883,6 +1883,10 @@ void gather_results_node1(
     // STREAM<ap_uint<512> > & s_result1_partial_14, STREAM<ap_uint<512> > & s_result1_partial_15, 
     STREAM<ap_uint<512> > & s_result_node);
 
+template<const int ROW_PER_PE>
+void gather_results_node1(
+    STREAM<ap_uint<512> > & s_result1_partial_0, 
+    STREAM<ap_uint<512> > & s_result_node);
 
 void dataTransform(STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > & s_feature_send_out, STREAM<ap_uint<512> > & s_padded_zero, STREAM<ap_uint<512> > & s_data_out);
 
@@ -7982,9 +7986,9 @@ void gather_results_32PEs(
             reg1.range(511, 480) = s_result_PE31.read() + 1;
             s_result_all.write(reg1);
         }
-        #ifndef ACCL_SYNTHESIS
-            std::cout <<"reduce root gather_results_32PEs item:"<<item<<std::endl;
-        #endif
+        // #ifndef ACCL_SYNTHESIS
+        //     std::cout <<"reduce root gather_results_32PEs item:"<<item<<std::endl;
+        // #endif
     }
 }
 
@@ -9128,6 +9132,48 @@ void gather_results_node1(
     }
 }
 
+
+template<const int ROW_PER_PE>
+void gather_results_node1(
+    STREAM<ap_uint<512> > & s_result1_partial_0, 
+    STREAM<ap_uint<512> > & s_result_node){
+    for_each_item:
+    for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(s_result1_partial_0.read());
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+    }
+}
+
 void dataTransform(STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > & s_feature_send_out, STREAM<ap_uint<512> > & s_padded_zero, STREAM<ap_uint<512> > & s_data_out){
 
     ValidData:
@@ -9136,9 +9182,9 @@ void dataTransform(STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > 
         for (int i = 0; i < 16; i++) {
             #pragma HLS pipeline II=1
             s_data_out.write(s_result_node.read()); 
-            #ifndef ACCL_SYNTHESIS
-                std::cout <<"reduce root dataTransform loop1: wr_count:"<<i<<std::endl;
-            #endif
+            // #ifndef ACCL_SYNTHESIS
+            //     std::cout <<"reduce root dataTransform loop1: wr_count:"<<i<<std::endl;
+            // #endif
         }
 
         // for (int i = 0; i < 64; i++){
@@ -9156,17 +9202,17 @@ void dataTransform(STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > 
         for (int i = 0; i < 48; i++) {
             #pragma HLS pipeline II=1
             s_data_out.write(s_padded_zero.read()); // padded packet
-            #ifndef ACCL_SYNTHESIS
-                std::cout <<"reduce root dataTransform loop2: wr_count:"<<i<<std::endl;
-            #endif
+            // #ifndef ACCL_SYNTHESIS
+            //     std::cout <<"reduce root dataTransform loop2: wr_count:"<<i<<std::endl;
+            // #endif
         }
 
         for (int i = 0; i < 128; i++) {
             #pragma HLS pipeline II=1
             s_data_out.write(s_feature_send_out.read()); // padded packet
-            #ifndef ACCL_SYNTHESIS
-                std::cout <<"reduce root dataTransform loop3: wr_count:"<<i<<std::endl;
-            #endif
+            // #ifndef ACCL_SYNTHESIS
+            //     std::cout <<"reduce root dataTransform loop3: wr_count:"<<i<<std::endl;
+            // #endif
         }
 
         // for (int i = 0; i < 192; i++) {
@@ -9213,8 +9259,6 @@ void dataTransform(STREAM<ap_uint<512> > & s_feature_in, STREAM<ap_uint<512> > &
 
 void stream_data_out(STREAM<ap_uint<512> >& s_data_out_buffer, STREAM<ap_uint<512> >& s_data_out)
 {
-#pragma HLS dataflow
-
     stream_data_out:
     for (int i = 0; i < BATCH_NUM * BATCH_SIZE; ++i)
     {
@@ -9228,8 +9272,6 @@ void stream_data_out(STREAM<ap_uint<512> >& s_data_out_buffer, STREAM<ap_uint<51
 
 void pad_zero(STREAM<ap_uint<512> >& s_padded_zero)
 {
-#pragma HLS dataflow
-
     for (int i = 0; i < BATCH_NUM * BATCH_SIZE; ++i)
     {
         for (int j = 0; j < 48; ++j)

@@ -30,8 +30,43 @@
 #include <iostream>
 #include <fstream>
 #include "dlrm.h"
+#include "constants.hpp"
 
 using namespace ACCL;
+
+//******************************
+//**  XCC Operations          **
+//******************************
+//Housekeeping
+#define ACCL_CONFIG         0
+//Primitives
+#define ACCL_COPY           1
+#define ACCL_COMBINE        2
+#define ACCL_SEND           3 
+#define ACCL_RECV           4
+//Collectives
+#define ACCL_BCAST          5
+#define ACCL_SCATTER        6
+#define ACCL_GATHER         7
+#define ACCL_REDUCE         8
+#define ACCL_ALLGATHER      9
+#define ACCL_ALLREDUCE      10
+#define ACCL_REDUCE_SCATTER 11
+#define ACCL_BARRIER        12
+#define ACCL_ALLTOALL       13
+#define ACCL_NOP            255
+
+//ACCL_CONFIG SUBFUNCTIONS
+#define HOUSEKEEP_SWRST                0
+#define HOUSEKEEP_PKTEN                1
+#define HOUSEKEEP_TIMEOUT              2
+#define HOUSEKEEP_OPEN_PORT            3
+#define HOUSEKEEP_OPEN_CON             4
+#define HOUSEKEEP_SET_STACK_TYPE       5
+#define HOUSEKEEP_SET_MAX_SEGMENT_SIZE 6
+#define HOUSEKEEP_CLOSE_CON            7
+
+#define CONFIG_HW_BENCH_RECORD 7
 
 int rank, size;
 unsigned failed_tests;
@@ -57,6 +92,210 @@ struct options_t {
   std::string xclbin;
 	std::string fpgaIP;
 };
+
+struct timestamp_t {
+  uint64_t cmdSeq;
+  uint64_t scenario;
+  uint64_t len;
+  uint64_t comm;
+  uint64_t root_src_dst;
+  uint64_t function;
+  uint64_t msg_tag;
+  uint64_t datapath_cfg;
+  uint64_t compression_flags;
+  uint64_t stream_flags;
+  uint64_t addra_l;
+  uint64_t addra_h;
+  uint64_t addrb_l;
+  uint64_t addrb_h;
+  uint64_t addrc_l;
+  uint64_t addrc_h;
+  uint64_t cmdTimestamp;
+  uint64_t cmdEnd;
+  uint64_t stsSeq;
+  uint64_t sts;
+  uint64_t stsTimestamp;
+  uint64_t stsEnd;
+};
+
+timestamp_t readTimeStamp(uint64_t* host_ptr_hw_bench_cmd, uint64_t* host_ptr_hw_bench_sts, unsigned int& cmd_mem_offset, unsigned int& sts_mem_offset)
+{
+  timestamp_t timestamp;
+
+  timestamp.cmdSeq = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.scenario = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.len = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.comm = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.root_src_dst = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.function = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.msg_tag = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.datapath_cfg = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.compression_flags = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.stream_flags = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.addra_l = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.addra_h = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.addrb_l = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.addrb_h = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.addrc_l = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.addrc_h = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.cmdTimestamp = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+  timestamp.cmdEnd = (uint64_t)host_ptr_hw_bench_cmd[cmd_mem_offset];
+  cmd_mem_offset++;
+
+  timestamp.stsSeq = (uint64_t)host_ptr_hw_bench_sts[sts_mem_offset];
+  sts_mem_offset++;
+  timestamp.sts = (uint64_t)host_ptr_hw_bench_sts[sts_mem_offset];
+  sts_mem_offset++;
+  timestamp.stsTimestamp = (uint64_t)host_ptr_hw_bench_sts[sts_mem_offset];
+  sts_mem_offset++;
+  timestamp.stsEnd = (uint64_t)host_ptr_hw_bench_sts[sts_mem_offset];
+  sts_mem_offset++;
+
+  return timestamp;
+}
+
+void printTimeStamp(timestamp_t timestamp, options_t &options)
+{
+  std::string exp;
+  bool writeToLog = false;
+  std::cout<<"cmdSeq: "<<timestamp.cmdSeq<<" ";
+  switch (timestamp.scenario)
+  {
+      case ACCL_COPY:
+          std::cout<<"ACCL_COPY";
+          break;
+      case ACCL_COMBINE:
+          std::cout<<"ACCL_COMBINE";
+          break;
+      case ACCL_SEND:
+          std::cout<<"ACCL_SEND";
+          exp="sendrecv_K2K";
+          writeToLog=true;
+          break;
+      case ACCL_RECV:
+          std::cout<<"ACCL_RECV";
+          exp="sendrecv_K2K";
+          writeToLog=true;
+          break;
+      case ACCL_BCAST:
+          std::cout<<"ACCL_BCAST";
+          exp="bcast_K2K";
+          writeToLog=true;
+          break;
+      case ACCL_SCATTER:
+          std::cout<<"ACCL_SCATTER";
+          exp="scatter_K2K";
+          writeToLog=true;
+          break;
+      case ACCL_GATHER:
+          std::cout<<"ACCL_GATHER";
+          exp="gather_K2K";
+          writeToLog=true;
+          break;
+      case ACCL_REDUCE:
+          std::cout<<"ACCL_REDUCE";
+          exp="reduce_K2K";
+          writeToLog=true;
+          break;
+      case ACCL_ALLGATHER:
+          std::cout<<"ACCL_ALLGATHER";
+          exp="allgather_K2K";
+          writeToLog=true;
+          break;
+      case ACCL_REDUCE_SCATTER:
+          std::cout<<"ACCL_REDUCE_SCATTER";
+          break;
+      case ACCL_ALLREDUCE:
+          std::cout<<"ACCL_ALLREDUCE";
+          exp="allreduce_K2K";
+          writeToLog=true;
+          break;
+      case ACCL_BARRIER:
+          std::cout<<"ACCL_COPY";
+          break;
+      case ACCL_ALLTOALL:
+          std::cout<<"ACCL_ALLTOALL";
+          break;
+      case ACCL_NOP:
+          std::cout<<"ACCL_NOP";
+          break;
+      case ACCL_CONFIG:
+          std::cout<<"ACCL_CONFIG";
+          switch (timestamp.function)
+          {
+              case HOUSEKEEP_SWRST:
+                  std::cout<<" HOUSEKEEP_SWRST";
+                  break;
+              case HOUSEKEEP_PKTEN:
+                  std::cout<<" HOUSEKEEP_PKTEN";
+                  break;
+              case HOUSEKEEP_TIMEOUT:
+                  std::cout<<" HOUSEKEEP_TIMEOUT";
+                  break;
+              case HOUSEKEEP_OPEN_PORT:
+                  std::cout<<" HOUSEKEEP_OPEN_PORT";
+                  break;
+              case HOUSEKEEP_OPEN_CON:
+                  std::cout<<" HOUSEKEEP_OPEN_CON";
+                  break;
+              case HOUSEKEEP_CLOSE_CON:
+                  std::cout<<" HOUSEKEEP_CLOSE_CON";
+                  break;
+              case HOUSEKEEP_SET_STACK_TYPE:
+                  std::cout<<" HOUSEKEEP_SET_STACK_TYPE";
+                  break;
+              case HOUSEKEEP_SET_MAX_SEGMENT_SIZE:
+                  std::cout<<" HOUSEKEEP_SET_MAX_SEGMENT_SIZE";
+                  break;
+              default:
+                  std::cout<<" Not Recognized Function:"<<timestamp.function;
+                  break;
+          }
+          break;
+      default:
+          std::cout<<"Not Recognized Scenario:"<<timestamp.scenario;
+          writeToLog=false;
+          break;
+  }
+  std::cout<<" len: "<<timestamp.len<<" ";
+  std::cout<<" cmdTimestamp: "<<timestamp.cmdTimestamp<<" ";
+  std::cout<<" cmdEnd: "<<timestamp.cmdEnd<<" ";
+  std::cout<<" sts: "<<timestamp.sts<<" ";
+  std::cout<<" stsTimestamp: "<<timestamp.stsTimestamp<<" ";
+  std::cout<<" stsEnd: "<<timestamp.stsEnd<<" ";
+  std::cout<<std::endl;
+
+  if ((timestamp.cmdEnd != 0xFFFFFFFFFFFFFFFF) || (timestamp.stsEnd != 0xFFFFFFFFFFFFFFFF))
+  {
+    writeToLog=false;
+  }
+  // if (writeToLog)
+  // {
+  //   uint64_t start_cycle = timestamp.cmdTimestamp;
+  //   uint64_t end_cycle = timestamp.stsTimestamp;
+  //   double durationUs = (end_cycle-start_cycle)/(double)FREQ;
+  //   double tput = (options.count*sizeof(float)*8.0)/(durationUs*1000.0); // only useful for send/recv
+  //   accl_log(rank, format_log(exp, options, durationUs, tput));
+  // }
+}
+
 
 std::string prepend_process() {
   return "[process " + std::to_string(rank) + "] ";
@@ -275,8 +514,8 @@ void test_dlrm_sim(ACCL::ACCL &accl, options_t &options, unsigned int numEmbedNo
   unsigned int count = options.count;
   unsigned int own_rank = rank;
   int errors = 0;
-  if (size < 4) {
-    std::cout<<"Error: Minimum group size is 4, current size:"<<size<<std::endl;
+  if (size < 6) {
+    std::cout<<"Error: Minimum group size is 6, current size:"<<size<<std::endl;
     return;
   }
 	
@@ -350,7 +589,6 @@ void test_dlrm_sim(ACCL::ACCL &accl, options_t &options, unsigned int numEmbedNo
   {
     unsigned int dst_rank = own_rank - reduce_comm_size;
     dlrm_embedding(
-            // 25 memory channels
             host_embed_buf, 
             host_embed_buf,
             host_embed_buf,
@@ -359,38 +597,19 @@ void test_dlrm_sim(ACCL::ACCL &accl, options_t &options, unsigned int numEmbedNo
             host_embed_buf, 
             host_embed_buf,
             host_embed_buf,
-            host_embed_buf,
-            host_embed_buf,
-            host_embed_buf, 
-            host_embed_buf,
-            host_embed_buf,
-            host_embed_buf,
-            host_embed_buf,
-            host_embed_buf, 
-            host_embed_buf,
-            host_embed_buf,
-            host_embed_buf,
-            host_embed_buf,
-            host_embed_buf, 
-            host_embed_buf,
-            host_embed_buf,
-            host_embed_buf,
-            host_embed_buf,
-            count, dst_rank, accl.get_communicator_addr(GLOBAL_COMM), accl.get_arithmetic_config_addr({dataType::int32, dataType::int32}), callreq, callack, data_krnl2cclo, data_cclo2krnl);
+            dst_rank, own_rank, size, accl.get_communicator_addr(GLOBAL_COMM), accl.get_arithmetic_config_addr({dataType::int32, dataType::int32}), callreq, callack, data_krnl2cclo, data_cclo2krnl);
   }
   // recv and reduce operation for reduce nodes
   else if (own_role == DLRM_REDUCE_ROOT_ROLE)
   {
     unsigned int destination = 2*numEmbedNodes+1;
-    dlrm_reduce_root(host_op_buf, count, destination, reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, accl.get_communicator_addr(GLOBAL_COMM), accl.get_communicator_addr(REDUCE_COMM), accl.get_arithmetic_config_addr({dataType::int32, dataType::int32}), callreq, callack, data_krnl2cclo, data_cclo2krnl);
+    dlrm_reduce_root(destination, reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, own_rank, size, accl.get_communicator_addr(GLOBAL_COMM), accl.get_communicator_addr(REDUCE_COMM), accl.get_arithmetic_config_addr({dataType::int32, dataType::int32}), callreq, callack, data_krnl2cclo, data_cclo2krnl);
   } else if (own_role == DLRM_REDUCE_SLAVE_ROLE)
   {
-    dlrm_reduce_slave(count, reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, accl.get_communicator_addr(REDUCE_COMM), accl.get_arithmetic_config_addr({dataType::int32, dataType::int32}),
-                    callreq, callack,
-                    data_krnl2cclo, data_cclo2krnl);
+    dlrm_reduce_slave(reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, own_rank, size, accl.get_communicator_addr(GLOBAL_COMM), accl.get_communicator_addr(REDUCE_COMM), accl.get_arithmetic_config_addr({dataType::int32, dataType::int32}), callreq, callack, data_krnl2cclo, data_cclo2krnl);
   } else if (own_role == DLRM_AGG_ROLE)
   {
-    dlrm_agg(host_res_buf, count, data_krnl2cclo, data_cclo2krnl);
+    dlrm_agg(host_res_buf, own_rank, size, accl.get_communicator_addr(GLOBAL_COMM), accl.get_arithmetic_config_addr({dataType::int32, dataType::int32}), callreq, callack, data_krnl2cclo, data_cclo2krnl);
   }
 
   //stop the BFM
@@ -482,287 +701,7 @@ void start_test(options_t options) {
   failed_tests = 0;
   skipped_tests = 0;
 
-  size_t HBM_embedding0_size =  HBM_BANK0_SIZE;
-  size_t HBM_embedding1_size =  HBM_BANK1_SIZE;
-  size_t HBM_embedding2_size =  HBM_BANK2_SIZE;
-  size_t HBM_embedding3_size =  HBM_BANK3_SIZE;
-  size_t HBM_embedding4_size =  HBM_BANK4_SIZE;
-  size_t HBM_embedding5_size =  HBM_BANK5_SIZE;
-  size_t HBM_embedding6_size =  HBM_BANK6_SIZE;
-  size_t HBM_embedding7_size =  HBM_BANK7_SIZE;
-  size_t HBM_embedding8_size =  HBM_BANK8_SIZE;
-  size_t HBM_embedding9_size =  HBM_BANK9_SIZE;
-  size_t HBM_embedding10_size =  HBM_BANK10_SIZE;
-  size_t HBM_embedding11_size =  HBM_BANK11_SIZE;
-  size_t HBM_embedding12_size =  HBM_BANK12_SIZE;
-  size_t HBM_embedding13_size =  HBM_BANK13_SIZE;
-  size_t HBM_embedding14_size =  HBM_BANK14_SIZE;
-  size_t HBM_embedding15_size =  HBM_BANK15_SIZE;
-  size_t HBM_embedding16_size =  HBM_BANK16_SIZE;
-  size_t HBM_embedding17_size =  HBM_BANK17_SIZE;
-  size_t HBM_embedding18_size =  HBM_BANK18_SIZE;
-  size_t HBM_embedding19_size =  HBM_BANK19_SIZE;
-  size_t HBM_embedding20_size =  HBM_BANK20_SIZE;
-  size_t HBM_embedding21_size =  HBM_BANK21_SIZE;
-  size_t HBM_embedding22_size =  HBM_BANK22_SIZE;
-  size_t HBM_embedding23_size =  HBM_BANK23_SIZE;
-  size_t HBM_embedding24_size =  HBM_BANK24_SIZE;
-
-  int HBM_embedding0[HBM_embedding0_size];
-  int HBM_embedding1[HBM_embedding1_size];
-  int HBM_embedding2[HBM_embedding2_size];
-  int HBM_embedding3[HBM_embedding3_size];
-  int HBM_embedding4[HBM_embedding4_size];
-  int HBM_embedding5[HBM_embedding5_size];
-  int HBM_embedding6[HBM_embedding6_size];
-  int HBM_embedding7[HBM_embedding7_size];
-  int HBM_embedding8[HBM_embedding8_size];
-  int HBM_embedding9[HBM_embedding9_size];
-  int HBM_embedding10[HBM_embedding10_size];
-  int HBM_embedding11[HBM_embedding11_size];
-  int HBM_embedding12[HBM_embedding12_size];
-  int HBM_embedding13[HBM_embedding13_size];
-  int HBM_embedding14[HBM_embedding14_size];
-  int HBM_embedding15[HBM_embedding15_size];
-  int HBM_embedding16[HBM_embedding16_size];
-  int HBM_embedding17[HBM_embedding17_size];
-  int HBM_embedding18[HBM_embedding18_size];
-  int HBM_embedding19[HBM_embedding19_size];
-  int HBM_embedding20[HBM_embedding20_size];
-  int HBM_embedding21[HBM_embedding21_size];
-  int HBM_embedding22[HBM_embedding22_size];
-  int HBM_embedding23[HBM_embedding23_size];
-  int HBM_embedding24[HBM_embedding24_size];
-
-// #define DEBUG
-#ifdef DEBUG
-    const int weights_init = 1;
-#endif
-    for (int i = 0 ; i < TABLE_SIZE_HBM_0 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_0; j++) {
-#ifdef DEBUG
-        HBM_embedding0[i * PADDED_SIZE_HBM_0 + j + ADDR_AXI_HBM_0] = weights_init;
-#else
-        HBM_embedding0[i * PADDED_SIZE_HBM_0 + j + ADDR_AXI_HBM_0] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_1 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_1; j++) {
-#ifdef DEBUG
-        HBM_embedding1[i * PADDED_SIZE_HBM_1 + j + ADDR_AXI_HBM_1] = weights_init;
-#else
-        HBM_embedding1[i * PADDED_SIZE_HBM_1 + j + ADDR_AXI_HBM_1] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_2 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_2; j++) {
-#ifdef DEBUG
-        HBM_embedding2[i * PADDED_SIZE_HBM_2 + j + ADDR_AXI_HBM_2] = weights_init;
-#else
-        HBM_embedding2[i * PADDED_SIZE_HBM_2 + j + ADDR_AXI_HBM_2] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_3 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_3; j++) {
-#ifdef DEBUG
-        HBM_embedding3[i * PADDED_SIZE_HBM_3 + j + ADDR_AXI_HBM_3] = weights_init;
-#else
-        HBM_embedding3[i * PADDED_SIZE_HBM_3 + j + ADDR_AXI_HBM_3] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_4 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_4; j++) {
-#ifdef DEBUG
-        HBM_embedding4[i * PADDED_SIZE_HBM_4 + j + ADDR_AXI_HBM_4] = weights_init;
-#else
-        HBM_embedding4[i * PADDED_SIZE_HBM_4 + j + ADDR_AXI_HBM_4] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_5 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_5; j++) {
-#ifdef DEBUG
-        HBM_embedding5[i * PADDED_SIZE_HBM_5 + j + ADDR_AXI_HBM_5] = weights_init;
-#else
-        HBM_embedding5[i * PADDED_SIZE_HBM_5 + j + ADDR_AXI_HBM_5] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_6 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_6; j++) {
-#ifdef DEBUG
-        HBM_embedding6[i * PADDED_SIZE_HBM_6 + j + ADDR_AXI_HBM_6] = weights_init;
-#else
-        HBM_embedding6[i * PADDED_SIZE_HBM_6 + j + ADDR_AXI_HBM_6] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_7 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_7; j++) {
-#ifdef DEBUG
-        HBM_embedding7[i * PADDED_SIZE_HBM_7 + j + ADDR_AXI_HBM_7] = weights_init;
-#else
-        HBM_embedding7[i * PADDED_SIZE_HBM_7 + j + ADDR_AXI_HBM_7] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_8 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_8; j++) {
-#ifdef DEBUG
-        HBM_embedding8[i * PADDED_SIZE_HBM_8 + j + ADDR_AXI_HBM_8] = weights_init;
-#else
-        HBM_embedding8[i * PADDED_SIZE_HBM_8 + j + ADDR_AXI_HBM_8] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_9 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_9; j++) {
-#ifdef DEBUG
-        HBM_embedding9[i * PADDED_SIZE_HBM_9 + j + ADDR_AXI_HBM_9] = weights_init;
-#else
-        HBM_embedding9[i * PADDED_SIZE_HBM_9 + j + ADDR_AXI_HBM_9] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_10 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_10; j++) {
-#ifdef DEBUG
-        HBM_embedding10[i * PADDED_SIZE_HBM_10 + j + ADDR_AXI_HBM_10] = weights_init;
-#else
-        HBM_embedding10[i * PADDED_SIZE_HBM_10 + j + ADDR_AXI_HBM_10] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_11 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_11; j++) {
-#ifdef DEBUG
-        HBM_embedding11[i * PADDED_SIZE_HBM_11 + j + ADDR_AXI_HBM_11] = weights_init;
-#else
-        HBM_embedding11[i * PADDED_SIZE_HBM_11 + j + ADDR_AXI_HBM_11] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_12 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_12; j++) {
-#ifdef DEBUG
-        HBM_embedding12[i * PADDED_SIZE_HBM_12 + j + ADDR_AXI_HBM_12] = weights_init;
-#else
-        HBM_embedding12[i * PADDED_SIZE_HBM_12 + j + ADDR_AXI_HBM_12] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_13 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_13; j++) {
-#ifdef DEBUG
-        HBM_embedding13[i * PADDED_SIZE_HBM_13 + j + ADDR_AXI_HBM_13] = weights_init;
-#else
-        HBM_embedding13[i * PADDED_SIZE_HBM_13 + j + ADDR_AXI_HBM_13] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_14 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_14; j++) {
-#ifdef DEBUG
-        HBM_embedding14[i * PADDED_SIZE_HBM_14 + j + ADDR_AXI_HBM_14] = weights_init;
-#else
-        HBM_embedding14[i * PADDED_SIZE_HBM_14 + j + ADDR_AXI_HBM_14] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_15 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_15; j++) {
-#ifdef DEBUG
-        HBM_embedding15[i * PADDED_SIZE_HBM_15 + j + ADDR_AXI_HBM_15] = weights_init;
-#else
-        HBM_embedding15[i * PADDED_SIZE_HBM_15 + j + ADDR_AXI_HBM_15] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_16 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_16; j++) {
-#ifdef DEBUG
-        HBM_embedding16[i * PADDED_SIZE_HBM_16 + j + ADDR_AXI_HBM_16] = weights_init;
-#else
-        HBM_embedding16[i * PADDED_SIZE_HBM_16 + j + ADDR_AXI_HBM_16] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_17 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_17; j++) {
-#ifdef DEBUG
-        HBM_embedding17[i * PADDED_SIZE_HBM_17 + j + ADDR_AXI_HBM_17] = weights_init;
-#else
-        HBM_embedding17[i * PADDED_SIZE_HBM_17 + j + ADDR_AXI_HBM_17] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_18 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_18; j++) {
-#ifdef DEBUG
-        HBM_embedding18[i * PADDED_SIZE_HBM_18 + j + ADDR_AXI_HBM_18] = weights_init;
-#else
-        HBM_embedding18[i * PADDED_SIZE_HBM_18 + j + ADDR_AXI_HBM_18] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_19 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_19; j++) {
-#ifdef DEBUG
-        HBM_embedding19[i * PADDED_SIZE_HBM_19 + j + ADDR_AXI_HBM_19] = weights_init;
-#else
-        HBM_embedding19[i * PADDED_SIZE_HBM_19 + j + ADDR_AXI_HBM_19] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_20 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_20; j++) {
-#ifdef DEBUG
-        HBM_embedding20[i * PADDED_SIZE_HBM_20 + j + ADDR_AXI_HBM_20] = weights_init;
-#else
-        HBM_embedding20[i * PADDED_SIZE_HBM_20 + j + ADDR_AXI_HBM_20] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_21 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_21; j++) {
-#ifdef DEBUG
-        HBM_embedding21[i * PADDED_SIZE_HBM_21 + j + ADDR_AXI_HBM_21] = weights_init;
-#else
-        HBM_embedding21[i * PADDED_SIZE_HBM_21 + j + ADDR_AXI_HBM_21] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_22 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_22; j++) {
-#ifdef DEBUG
-        HBM_embedding22[i * PADDED_SIZE_HBM_22 + j + ADDR_AXI_HBM_22] = weights_init;
-#else
-        HBM_embedding22[i * PADDED_SIZE_HBM_22 + j + ADDR_AXI_HBM_22] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_23 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_23; j++) {
-#ifdef DEBUG
-        HBM_embedding23[i * PADDED_SIZE_HBM_23 + j + ADDR_AXI_HBM_23] = weights_init;
-#else
-        HBM_embedding23[i * PADDED_SIZE_HBM_23 + j + ADDR_AXI_HBM_23] = rand() % 2;
-#endif
-        }
-    }
-    for (int i = 0 ; i < TABLE_SIZE_HBM_24 ; i++) {
-        for (int j = 0; j < DATA_SIZE_HBM_24; j++) {
-#ifdef DEBUG
-        HBM_embedding24[i * PADDED_SIZE_HBM_24 + j + ADDR_AXI_HBM_24] = weights_init;
-#else
-        HBM_embedding24[i * PADDED_SIZE_HBM_24 + j + ADDR_AXI_HBM_24] = rand() % 2;
-#endif
-        }
-    }
+  MPI_Barrier(MPI_COMM_WORLD);
 
 	std::vector<std::string> ipList;
 
@@ -782,8 +721,8 @@ void start_test(options_t options) {
 
   unsigned int count = options.count;
   int errors = 0;
-  if (size < 4) {
-    std::cout<<"Error: Minimum group size is 4, current size:"<<size<<std::endl;
+  if (size < 6) {
+    std::cout<<"Error: Minimum group size is 6, current size:"<<size<<std::endl;
     return;
   }
 
@@ -923,25 +862,14 @@ void start_test(options_t options) {
   MPI_Barrier(MPI_COMM_WORLD);
   debug(accl->dump_communicator());
 
+  MPI_Barrier(MPI_COMM_WORLD);
 	// create buffers
-  int host_embed_buf[options.count], host_op_buf[options.count], host_res_buf[options.count];
-
-  for (unsigned int i = 0; i < count; i++) {
-    host_embed_buf[i] = (int)i;
-  }
-	
-  for (unsigned int i = 0; i < count; i++) {
-    host_op_buf[i] = 0;
-  }
+  int host_res_buf[options.count];
 
   for (unsigned int i = 0; i < count; i++) {
     host_res_buf[i] = 0;
   }
 
-  // std::cout<<"host_embed_buf:"<<host_embed_buf<<" host_op_buf:"<<host_op_buf<<" host_res_buf:"<<host_res_buf<<std::endl;
-
-  xrt::bo embed_buf_bo;
-  xrt::bo op_buf_bo;
   xrt::bo res_buf_bo;
 
   xrt::bo   HBM_embedding0_bo,
@@ -951,30 +879,57 @@ void start_test(options_t options) {
             HBM_embedding4_bo,
             HBM_embedding5_bo,
             HBM_embedding6_bo,
-            HBM_embedding7_bo,
-            HBM_embedding8_bo,
-            HBM_embedding9_bo,
-            HBM_embedding10_bo,
-            HBM_embedding11_bo,
-            HBM_embedding12_bo,
-            HBM_embedding13_bo,
-            HBM_embedding14_bo,
-            HBM_embedding15_bo,
-            HBM_embedding16_bo,
-            HBM_embedding17_bo,
-            HBM_embedding18_bo,
-            HBM_embedding19_bo,
-            HBM_embedding20_bo,
-            HBM_embedding21_bo,
-            HBM_embedding22_bo,
-            HBM_embedding23_bo,
-            HBM_embedding24_bo;
+            HBM_embedding7_bo;
   
-
   if (own_role == DLRM_EMBED_ROLE){
-    // embed_buf_bo = xrt::bo(device, sizeof(int)*options.count, user_kernel.group_id(0));
-    // embed_buf_bo.write(host_embed_buf);
-    // embed_buf_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    std::cout<<"HBM_BANK0_SIZE:"<<HBM_BANK0_SIZE<<std::endl;
+
+    size_t HBM_embedding0_size =  HBM_BANK0_SIZE;
+    size_t HBM_embedding1_size =  HBM_BANK1_SIZE;
+    size_t HBM_embedding2_size =  HBM_BANK2_SIZE;
+    size_t HBM_embedding3_size =  HBM_BANK3_SIZE;
+    size_t HBM_embedding4_size =  HBM_BANK4_SIZE;
+    size_t HBM_embedding5_size =  HBM_BANK5_SIZE;
+    size_t HBM_embedding6_size =  HBM_BANK6_SIZE;
+    size_t HBM_embedding7_size =  HBM_BANK7_SIZE;
+
+    int HBM_embedding0[HBM_BANK0_SIZE];
+    int HBM_embedding1[HBM_BANK1_SIZE];
+    int HBM_embedding2[HBM_BANK2_SIZE];
+    int HBM_embedding3[HBM_BANK3_SIZE];
+    int HBM_embedding4[HBM_BANK4_SIZE];
+    int HBM_embedding5[HBM_BANK5_SIZE];
+    int HBM_embedding6[HBM_BANK6_SIZE];
+    int HBM_embedding7[HBM_BANK7_SIZE];
+
+    const int weights_init = 1;
+    for (int i = 0 ; i < HBM_embedding0_size ; i++) {
+      HBM_embedding0[i] = weights_init;
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_1 ; i++) {
+      HBM_embedding1[i] = weights_init;
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_2 ; i++) {
+      HBM_embedding2[i] = weights_init;
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_3 ; i++) {
+      HBM_embedding3[i] = weights_init;
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_4 ; i++) {
+      HBM_embedding4[i] = weights_init;
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_5 ; i++) {
+      HBM_embedding5[i] = weights_init;
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_6 ; i++) {
+      HBM_embedding6[i] = weights_init;
+    }
+    for (int i = 0 ; i < TABLE_SIZE_HBM_7 ; i++) {
+      HBM_embedding7[i] = weights_init;
+    }
+
+    std::cout<<"HBM embedding init done"<<std::endl;
 
     HBM_embedding0_bo = xrt::bo(device, HBM_embedding0_size *sizeof(int), user_kernel.group_id(0));
     HBM_embedding0_bo.write(HBM_embedding0);
@@ -1008,84 +963,11 @@ void start_test(options_t options) {
     HBM_embedding7_bo.write(HBM_embedding7);
     HBM_embedding7_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-    HBM_embedding8_bo = xrt::bo(device, HBM_embedding8_size *sizeof(int), user_kernel.group_id(8));
-    HBM_embedding8_bo.write(HBM_embedding8);
-    HBM_embedding8_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    HBM_embedding9_bo = xrt::bo(device, HBM_embedding9_size *sizeof(int), user_kernel.group_id(9));
-    HBM_embedding9_bo.write(HBM_embedding9);
-    HBM_embedding9_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    HBM_embedding10_bo = xrt::bo(device, HBM_embedding10_size *sizeof(int), user_kernel.group_id(10));
-    HBM_embedding10_bo.write(HBM_embedding10);
-    HBM_embedding10_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    HBM_embedding11_bo = xrt::bo(device, HBM_embedding11_size *sizeof(int), user_kernel.group_id(11));
-    HBM_embedding11_bo.write(HBM_embedding11);
-    HBM_embedding11_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    HBM_embedding12_bo = xrt::bo(device, HBM_embedding12_size *sizeof(int), user_kernel.group_id(12));
-    HBM_embedding12_bo.write(HBM_embedding12);
-    HBM_embedding12_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    HBM_embedding13_bo = xrt::bo(device, HBM_embedding13_size *sizeof(int), user_kernel.group_id(13));
-    HBM_embedding13_bo.write(HBM_embedding13);
-    HBM_embedding13_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    HBM_embedding14_bo = xrt::bo(device, HBM_embedding14_size *sizeof(int), user_kernel.group_id(14));
-    HBM_embedding14_bo.write(HBM_embedding14);
-    HBM_embedding14_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    HBM_embedding15_bo = xrt::bo(device, HBM_embedding15_size *sizeof(int), user_kernel.group_id(15));
-    HBM_embedding15_bo.write(HBM_embedding15);
-    HBM_embedding15_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    HBM_embedding16_bo = xrt::bo(device, HBM_embedding16_size *sizeof(int), user_kernel.group_id(16));
-    HBM_embedding16_bo.write(HBM_embedding16);
-    HBM_embedding16_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    HBM_embedding17_bo = xrt::bo(device, HBM_embedding17_size *sizeof(int), user_kernel.group_id(17));
-    HBM_embedding17_bo.write(HBM_embedding17);
-    HBM_embedding17_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    HBM_embedding18_bo = xrt::bo(device, HBM_embedding18_size *sizeof(int), user_kernel.group_id(18));
-    HBM_embedding18_bo.write(HBM_embedding18);
-    HBM_embedding18_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    HBM_embedding19_bo = xrt::bo(device, HBM_embedding19_size *sizeof(int), user_kernel.group_id(19));
-    HBM_embedding19_bo.write(HBM_embedding19);
-    HBM_embedding19_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    HBM_embedding20_bo = xrt::bo(device, HBM_embedding20_size *sizeof(int), user_kernel.group_id(20));
-    HBM_embedding20_bo.write(HBM_embedding20);
-    HBM_embedding20_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    HBM_embedding21_bo = xrt::bo(device, HBM_embedding21_size *sizeof(int), user_kernel.group_id(21));
-    HBM_embedding21_bo.write(HBM_embedding21);
-    HBM_embedding21_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    HBM_embedding22_bo = xrt::bo(device, HBM_embedding22_size *sizeof(int), user_kernel.group_id(22));
-    HBM_embedding22_bo.write(HBM_embedding22);
-    HBM_embedding22_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    HBM_embedding23_bo = xrt::bo(device, HBM_embedding23_size *sizeof(int), user_kernel.group_id(23));
-    HBM_embedding23_bo.write(HBM_embedding23);
-    HBM_embedding23_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    HBM_embedding24_bo = xrt::bo(device, HBM_embedding24_size *sizeof(int), user_kernel.group_id(24));
-    HBM_embedding24_bo.write(HBM_embedding24);
-    HBM_embedding24_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
     std::cout << "HBM_embedding allocation Finish" << std::endl; 
 
   } else if (own_role == DLRM_REDUCE_ROOT_ROLE)
   {
-    // creates a buffer that can be read by the CCLO
-    op_buf_bo = xrt::bo(device, sizeof(int)*options.count, devicemem);
-    op_buf_bo.write(host_op_buf);
-    op_buf_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-    std::cout<<"DLRM_REDUCE_ROOT_ROLE op_buf_bo physical address:"<< std::hex<<op_buf_bo.address()<<std::endl;
-
+    // do nothing
   } else if (own_role == DLRM_REDUCE_SLAVE_ROLE)
   {
     // do nothing
@@ -1097,12 +979,14 @@ void start_test(options_t options) {
   }
 
   MPI_Barrier(MPI_COMM_WORLD);
+
+  std::cout << "Start user kernels" << std::endl;
+
   // Embedding nodes
   if (own_role == DLRM_EMBED_ROLE)
   {
     unsigned int dst_rank = own_rank - reduce_comm_size;
     auto run = user_kernel(
-        // embed_buf_bo, 
         HBM_embedding0_bo,
         HBM_embedding1_bo,
         HBM_embedding2_bo,
@@ -1111,41 +995,26 @@ void start_test(options_t options) {
         HBM_embedding5_bo,
         HBM_embedding6_bo,
         HBM_embedding7_bo,
-        HBM_embedding8_bo,
-        HBM_embedding9_bo,
-        HBM_embedding10_bo,
-        HBM_embedding11_bo,
-        HBM_embedding12_bo,
-        HBM_embedding13_bo,
-        HBM_embedding14_bo,
-        HBM_embedding15_bo,
-        HBM_embedding16_bo,
-        HBM_embedding17_bo,
-        HBM_embedding18_bo,
-        HBM_embedding19_bo,
-        HBM_embedding20_bo,
-        HBM_embedding21_bo,
-        HBM_embedding22_bo,
-        HBM_embedding23_bo,
-        HBM_embedding24_bo,
-        count, dst_rank, accl->get_communicator_addr(GLOBAL_COMM), accl->get_arithmetic_config_addr({dataType::int32, dataType::int32}));
-    run.wait(3000);
+        dst_rank, own_rank, size, accl->get_communicator_addr(GLOBAL_COMM), accl->get_arithmetic_config_addr({dataType::int32, dataType::int32}));
+    run.wait();
   }
   // recv and reduce operation for reduce nodes
   else if (own_role == DLRM_REDUCE_ROOT_ROLE)
   {
     unsigned int destination = 2*numEmbedNodes+1;
-    auto run = user_kernel((ap_uint<64>)op_buf_bo.address(), count, destination, reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, accl->get_communicator_addr(GLOBAL_COMM), accl->get_communicator_addr(REDUCE_COMM), accl->get_arithmetic_config_addr({dataType::int32, dataType::int32}));
-    run.wait(3000);
+    auto run = user_kernel(destination, reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, own_rank, size, accl->get_communicator_addr(GLOBAL_COMM), accl->get_communicator_addr(REDUCE_COMM), accl->get_arithmetic_config_addr({dataType::int32, dataType::int32}));
+    run.wait();
   } else if (own_role == DLRM_REDUCE_SLAVE_ROLE)
   {
-    auto run = user_kernel(count, reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, accl->get_communicator_addr(REDUCE_COMM), accl->get_arithmetic_config_addr({dataType::int32, dataType::int32}));
-    run.wait(3000);
+    auto run = user_kernel(reduce_comm_root, (unsigned int)ACCL::reduceFunction::SUM, own_rank, size, accl->get_communicator_addr(GLOBAL_COMM), accl->get_communicator_addr(REDUCE_COMM), accl->get_arithmetic_config_addr({dataType::int32, dataType::int32}));
+    run.wait();
   } else if (own_role == DLRM_AGG_ROLE)
   {
-    auto run = user_kernel(res_buf_bo, count);
-    run.wait(3000);
+    auto run = user_kernel(res_buf_bo, own_rank, size, accl->get_communicator_addr(GLOBAL_COMM), accl->get_arithmetic_config_addr({dataType::int32, dataType::int32}));
+    run.wait();
   }
+
+  std::cout << "Finish user kernels" << std::endl;
   
   if (own_role == DLRM_AGG_ROLE)
   {
@@ -1178,7 +1047,51 @@ void start_test(options_t options) {
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  debug(accl->dump_communicator());
+  // Enable the benchmarking
+  if (own_role == DLRM_AGG_ROLE)
+  {
+    std::cout << "Enable hw bench kernel" << std::endl;
+    auto hw_bench_krnl = xrt::kernel(device, device.get_xclbin_uuid(), "collector:{collector_0}",xrt::kernel::cu_access_mode::exclusive);  
+
+    std::cout << "Allocate Buffer in Global Memory\n";
+    auto buf_hw_bench_cmd = xrt::bo (device, 8*1024*1024*sizeof(uint64_t), hw_bench_krnl.group_id(1));
+    auto buf_hw_bench_sts = xrt::bo (device, 8*1024*1024*sizeof(uint64_t), hw_bench_krnl.group_id(2));
+
+    auto host_ptr_hw_bench_cmd = buf_hw_bench_cmd.map<uint64_t*>();
+    auto host_ptr_hw_bench_sts = buf_hw_bench_sts.map<uint64_t*>();
+
+    std::fill(host_ptr_hw_bench_cmd, host_ptr_hw_bench_cmd + 8*1024*1024, 0);
+    std::fill(host_ptr_hw_bench_sts, host_ptr_hw_bench_sts + 8*1024*1024, 0);
+
+    std::cout << "synchronize input buffer data to device global memory\n";
+    buf_hw_bench_cmd.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+    buf_hw_bench_sts.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    int hw_bench_record = CONFIG_HW_BENCH_RECORD + (size-1) + 1;
+
+    std::cout << "Execution of the kernel\n";
+    auto run = hw_bench_krnl((hw_bench_record), buf_hw_bench_cmd, buf_hw_bench_sts);
+    uint32_t round_reg = hw_bench_krnl.read_register(0x010);
+    uint32_t cmd_addr_reg = hw_bench_krnl.read_register(0x018);
+    uint32_t sts_addr_reg = hw_bench_krnl.read_register(0x024);
+    std::cout<< std::hex << "round_reg: "<< round_reg <<" cmd_addr_reg: "<<cmd_addr_reg<<" sts_addr_reg: "<<sts_addr_reg<<std::endl;
+      
+    run.wait(1000);
+    
+    std::cout <<"Sync hw_bench mem to host"<< std::endl;
+    
+    buf_hw_bench_cmd.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+    unsigned int cmd_mem_offset = 0;
+    buf_hw_bench_sts.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+    unsigned int sts_mem_offset = 0;
+    for (unsigned int i = 0; i < hw_bench_record; i++)
+    {
+      timestamp_t timestamp = readTimeStamp(host_ptr_hw_bench_cmd, host_ptr_hw_bench_sts, cmd_mem_offset, sts_mem_offset);
+      printTimeStamp(timestamp, options);
+    }
+  }
+
+  // debug(accl->dump_communicator());
 
   if (failed_tests > 1) {
     MPI_Abort(MPI_COMM_WORLD, 1);
@@ -1217,7 +1130,7 @@ options_t parse_options(int argc, char *argv[]) {
         "positive integer");
     cmd.add(start_port_arg);
     TCLAP::ValueArg<uint32_t> count_arg("c", "count", "How many element per buffer",
-                                        false, 16, "positive integer");
+                                        false, (BATCH_NUM * BATCH_SIZE * 3 * 64 * 16), "positive integer");
     cmd.add(count_arg);
     TCLAP::ValueArg<uint16_t> bufsize_arg("b", "rxbuf-size",
                                           "How many KB per RX buffer", false, 256,
@@ -1341,7 +1254,10 @@ int main(int argc, char *argv[]) {
           << std::endl;
     std::cout << stream.str();
 
+    MPI_Barrier(MPI_COMM_WORLD);
+
     if(options.hardware){
+      std::cout<<"Hardware Test"<<std::endl;
       start_test(options);
     } else {
       start_test_sim(options);

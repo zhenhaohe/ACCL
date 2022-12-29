@@ -656,7 +656,7 @@ typedef ap_int<128> W_TYPE;  // weights / feature width
 
 #define FIFO_BATCH_SIZE 8   // cache 8 batches at max in FIFO
 //#define BATCH_SIZE 32
-#define BATCH_SIZE 4
+#define BATCH_SIZE 1
 //#define BATCH_NUM 2
 #define BATCH_NUM 1
 //#define BATCH_NUM 5000 // NOTE! load access idx to BRAM!

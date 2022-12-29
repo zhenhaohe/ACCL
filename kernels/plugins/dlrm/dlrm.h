@@ -27,19 +27,77 @@
 
 void dlrm_agg(
     int *dst,
-    int count,
     // //parameters pertaining to CCLO config
-    // ap_uint<32> comm_adr, 
-    // ap_uint<32> dpcfg_adr,
+    ap_uint<32> local_rank,
+    ap_uint<32> comm_size,
+    ap_uint<32> comm_adr, 
+    ap_uint<32> dpcfg_adr,
     // //streams to and from CCLO
-    // STREAM<command_word> &cmd_to_cclo,
-    // STREAM<command_word> &sts_from_cclo,
+    STREAM<command_word> &cmd_to_cclo,
+    STREAM<command_word> &sts_from_cclo,
     STREAM<stream_word> &data_to_cclo,
     STREAM<stream_word> &data_from_cclo
 );
 
 void dlrm_embedding(
-    // int *src,
+    // dlrm parameters
+    int *table_HBM0,
+    int *table_HBM1,
+    int *table_HBM2,
+    int *table_HBM3,
+    int *table_HBM4,
+    int *table_HBM5,
+    int *table_HBM6,
+    int *table_HBM7,
+    unsigned int destination,
+    //parameters pertaining to CCLO config
+    ap_uint<32> local_rank,
+    ap_uint<32> comm_size,
+    ap_uint<32> comm_adr, 
+    ap_uint<32> dpcfg_adr,
+    //streams to and from CCLO
+    STREAM<command_word> &cmd_to_cclo,
+    STREAM<command_word> &sts_from_cclo,
+    STREAM<stream_word> &data_to_cclo,
+    STREAM<stream_word> &data_from_cclo
+);
+
+void dlrm_reduce_root(
+    unsigned int destination,
+    //reduce configuration
+    unsigned int root,
+    unsigned int function,
+    //parameters pertaining to CCLO config
+    ap_uint<32> local_rank,
+    ap_uint<32> global_comm_size,
+    ap_uint<32> global_comm_adr, 
+    ap_uint<32> reduce_comm_adr, 
+    ap_uint<32> dpcfg_adr,
+    //streams to and from CCLO
+    STREAM<command_word> &cmd_to_cclo,
+    STREAM<command_word> &sts_from_cclo,
+    STREAM<stream_word> &data_to_cclo,
+    STREAM<stream_word> &data_from_cclo
+);
+
+void dlrm_reduce_slave(
+    //reduce configuration
+    unsigned int root,
+    unsigned int function,
+    //parameters pertaining to CCLO config
+    ap_uint<32> local_rank,
+    ap_uint<32> global_comm_size,
+    ap_uint<32> global_comm_adr, 
+    ap_uint<32> reduce_comm_adr, 
+    ap_uint<32> dpcfg_adr,
+    //streams to and from CCLO
+    STREAM<command_word> &cmd_to_cclo,
+    STREAM<command_word> &sts_from_cclo,
+    STREAM<stream_word> &data_to_cclo,
+    STREAM<stream_word> &data_from_cclo
+);
+
+void dlrm_embedding_reduce(
     int *table_HBM0,
     int *table_HBM1,
     int *table_HBM2,
@@ -56,51 +114,9 @@ void dlrm_embedding(
     int *table_HBM13,
     int *table_HBM14,
     int *table_HBM15,
-    int *table_HBM16,
-    int *table_HBM17,
-    int *table_HBM18,
-    int *table_HBM19,
-    int *table_HBM20,
-    int *table_HBM21,
-    int *table_HBM22,
-    int *table_HBM23,
-    int *table_HBM24,
 
     int count,
     unsigned int destination,
-    //parameters pertaining to CCLO config
-    ap_uint<32> comm_adr, 
-    ap_uint<32> dpcfg_adr,
-    //streams to and from CCLO
-    STREAM<command_word> &cmd_to_cclo,
-    STREAM<command_word> &sts_from_cclo,
-    STREAM<stream_word> &data_to_cclo,
-    STREAM<stream_word> &data_from_cclo
-);
-
-void dlrm_reduce_root(
-    ap_uint<64> src_addr,
-    int count,
-    unsigned int destination,
-    //reduce configuration
-    unsigned int root,
-    unsigned int function,
-    //parameters pertaining to CCLO config
-    ap_uint<32> comm_adr_global, 
-    ap_uint<32> comm_adr_reduce, 
-    ap_uint<32> dpcfg_adr,
-    //streams to and from CCLO
-    STREAM<command_word> &cmd_to_cclo,
-    STREAM<command_word> &sts_from_cclo,
-    STREAM<stream_word> &data_to_cclo,
-    STREAM<stream_word> &data_from_cclo
-);
-
-void dlrm_reduce_slave(
-    int count,
-    //reduce configuration
-    unsigned int root,
-    unsigned int function,
     //parameters pertaining to CCLO config
     ap_uint<32> comm_adr, 
     ap_uint<32> dpcfg_adr,

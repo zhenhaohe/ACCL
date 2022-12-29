@@ -1919,12 +1919,24 @@ void gather_results_layer_2(
     STREAM<ap_uint<512> > & s_result_node);
 
 template<const int ROW_PER_PE>
+void gather_results_layer_2(
+    STREAM<ap_uint<512> > & s_result1_partial_0, 
+    STREAM<ap_uint<512> > & s_result_partial,
+    STREAM<ap_uint<512> > & s_result_node);
+
+template<const int ROW_PER_PE>
 void gather_results_layer_3(
     STREAM<W_TYPE>& s_result_0, 
     STREAM<W_TYPE>& s_result_1, 
     STREAM<W_TYPE>& s_result_2, 
     STREAM<W_TYPE>& s_result_3, 
     STREAM<W_TYPE>& s_result_all);
+
+template<const int ROW_PER_PE>
+void gather_results_layer_3(
+    STREAM<W_TYPE>& s_result_0, 
+    STREAM<W_TYPE>& s_result_all);
+
 
 void output_layer(
     STREAM<W_TYPE>& s_feature,
@@ -9435,6 +9447,29 @@ void gather_results_layer_2(
 }
 
 template<const int ROW_PER_PE>
+void gather_results_layer_2(
+    STREAM<ap_uint<512> > & s_result1_partial_0, 
+    STREAM<ap_uint<512> > & s_result_partial,
+    STREAM<ap_uint<512> > & s_result_node){
+    for_each_item:
+    for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
+        for (int i = 0; i < 16; i++) {
+            #pragma HLS pipeline II=1
+            s_result_node.write(s_result_partial.read());
+        }
+        for (int i = 0; i < 2 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(s_result1_partial_0.read());
+        }
+        for (int i = 0; i < 14 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_node.write(0);
+        }
+    }
+}
+
+
+template<const int ROW_PER_PE>
 void gather_results_layer_3(
     STREAM<W_TYPE>& s_result_0, 
     STREAM<W_TYPE>& s_result_1, 
@@ -9478,6 +9513,25 @@ void gather_results_layer_3(
         // }
     }
 }
+
+template<const int ROW_PER_PE>
+void gather_results_layer_3(
+    STREAM<W_TYPE>& s_result_0, 
+    STREAM<W_TYPE>& s_result_all)
+{
+    for_each_item:
+    for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++){
+        for (int i = 0; i < 8 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_all.write(s_result_0.read());
+        }
+        for (int i = 0; i < 24 * ROW_PER_PE; i++){
+            #pragma HLS pipeline II=1
+            s_result_all.write(0);
+        }
+    }
+}
+
 
 void output_layer(
     STREAM<W_TYPE>& s_feature,

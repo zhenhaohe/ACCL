@@ -836,106 +836,110 @@ class ACCLData{
         }
 };
 
-// inline void barrier_root(
-//     //parameters pertaining to CCLO config
-//     ap_uint<32> local_rank,
-//     ap_uint<32> comm_size,
-//     ap_uint<32> comm_adr, 
-//     ap_uint<32> dpcfg_adr,
-//     //streams to and from CCLO
-//     STREAM<command_word> &cmd_to_cclo,
-//     STREAM<command_word> &sts_from_cclo,
-//     STREAM<stream_word> &data_to_cclo,
-//     STREAM<stream_word> &data_from_cclo
-// )
-// {
-//     //set up interfaces
-//     accl_hls::ACCLData data(data_to_cclo, data_from_cclo);
+#ifndef ACCL_SYNTHESIS
+// Pass simulation but doesn't pass the hardware execution
+inline void barrier_root(
+    //parameters pertaining to CCLO config
+    ap_uint<32> local_rank,
+    ap_uint<32> comm_size,
+    ap_uint<32> comm_adr, 
+    ap_uint<32> dpcfg_adr,
+    //streams to and from CCLO
+    STREAM<command_word> &cmd_to_cclo,
+    STREAM<command_word> &sts_from_cclo,
+    STREAM<stream_word> &data_to_cclo,
+    STREAM<stream_word> &data_from_cclo
+)
+{
+    //set up interfaces
+    accl_hls::ACCLData data(data_to_cclo, data_from_cclo);
 
-//     // Barrier
-//     // all non-root nodes send 1 packet to root
-//     // root receives the packets and then send one packet to each non-root node
-//     ap_uint<512> tmpword = 0;
-//     ap_uint<32> root = comm_size-1;
+    // Barrier
+    // all non-root nodes send 1 packet to root
+    // root receives the packets and then send one packet to each non-root node
+    ap_uint<512> tmpword = 0;
+    ap_uint<32> root = comm_size-1;
     
-//     collect_msg:
-//     for (int i = 0; i < (comm_size-1); i++)
-//     {
-//     #pragma HLS PIPELINE II=1
-//         tmpword = data.pull().data;
-//     }
-//     #ifndef ACCL_SYNTHESIS
-//         std::cout << "barrier root receive messages:" <<comm_size-1<< "\n";
-//     #endif
-//     // response to non-root ranks
-//     response_msg:
-//     for (int i = 0; i < (comm_size-1); i++)
-//     {
-//         accl_hls::start(ACCL_SEND, 16, comm_adr, i, 0, 9, dpcfg_adr, 0, 3, 0, 0, 0, cmd_to_cclo);
-//         #ifndef ACCL_SYNTHESIS
-//             std::cout << "barrier root stream put command:"<<i<< "\n";
-//         #endif
-//         data.push(tmpword, 0);
-//         #ifndef ACCL_SYNTHESIS
-//             std::cout << "barrier root stream put data:"<<i<< "\n";
-//         #endif
-//         accl_hls::finalize(sts_from_cclo);
-//         #ifndef ACCL_SYNTHESIS
-//             std::cout << "barrier root stream put ack:"<<i<< "\n";
-//         #endif
-//     }
+    collect_msg:
+    for (int i = 0; i < (comm_size-1); i++)
+    {
+    #pragma HLS PIPELINE II=1
+        tmpword = data.pull().data;
+    }
+    #ifndef ACCL_SYNTHESIS
+        std::cout << "barrier root receive messages:" <<comm_size-1<< "\n";
+    #endif
+    // response to non-root ranks
+    response_msg:
+    for (int i = 0; i < (comm_size-1); i++)
+    {
+        accl_hls::start(ACCL_SEND, 16, comm_adr, i, 0, 9, dpcfg_adr, 0, 3, 0, 0, 0, cmd_to_cclo);
+        #ifndef ACCL_SYNTHESIS
+            std::cout << "barrier root stream put command:"<<i<< "\n";
+        #endif
+        data.push(tmpword, 0);
+        #ifndef ACCL_SYNTHESIS
+            std::cout << "barrier root stream put data:"<<i<< "\n";
+        #endif
+        accl_hls::finalize(sts_from_cclo);
+        #ifndef ACCL_SYNTHESIS
+            std::cout << "barrier root stream put ack:"<<i<< "\n";
+        #endif
+    }
 
-//     #ifndef ACCL_SYNTHESIS
-//         std::cout << "barrier: finish" << "\n";
-//     #endif
+    #ifndef ACCL_SYNTHESIS
+        std::cout << "barrier: finish" << "\n";
+    #endif
     
-// }
+}
 
-// inline void barrier_non_root(
-//     //parameters pertaining to CCLO config
-//     ap_uint<32> local_rank,
-//     ap_uint<32> comm_size,
-//     ap_uint<32> comm_adr, 
-//     ap_uint<32> dpcfg_adr,
-//     //streams to and from CCLO
-//     STREAM<command_word> &cmd_to_cclo,
-//     STREAM<command_word> &sts_from_cclo,
-//     STREAM<stream_word> &data_to_cclo,
-//     STREAM<stream_word> &data_from_cclo
-// )
-// {
-//     //set up interfaces
-//     accl_hls::ACCLData data(data_to_cclo, data_from_cclo);
+inline void barrier_non_root(
+    //parameters pertaining to CCLO config
+    ap_uint<32> local_rank,
+    ap_uint<32> comm_size,
+    ap_uint<32> comm_adr, 
+    ap_uint<32> dpcfg_adr,
+    //streams to and from CCLO
+    STREAM<command_word> &cmd_to_cclo,
+    STREAM<command_word> &sts_from_cclo,
+    STREAM<stream_word> &data_to_cclo,
+    STREAM<stream_word> &data_from_cclo
+)
+{
+    //set up interfaces
+    accl_hls::ACCLData data(data_to_cclo, data_from_cclo);
 
-//     // Barrier
-//     // all non-root nodes send 1 packet to root
-//     // root receives the packets and then send one packet to each non-root node
-//     ap_uint<512> tmpword = 0;
-//     ap_uint<32> root = comm_size-1;
+    // Barrier
+    // all non-root nodes send 1 packet to root
+    // root receives the packets and then send one packet to each non-root node
+    ap_uint<512> tmpword = 0;
+    ap_uint<32> root = comm_size-1;
 
-//     // send one packet to root
-//     accl_hls::start(ACCL_SEND, 16, comm_adr, root, 0, 9, dpcfg_adr, 0, 3, 0, 0, 0, cmd_to_cclo);
+    // send one packet to root
+    accl_hls::start(ACCL_SEND, 16, comm_adr, root, 0, 9, dpcfg_adr, 0, 3, 0, 0, 0, cmd_to_cclo);
 
-//     data.push(tmpword, 0);
+    data.push(tmpword, 0);
 
-//     accl_hls::finalize(sts_from_cclo);
+    accl_hls::finalize(sts_from_cclo);
 
-//     #ifndef ACCL_SYNTHESIS
-//         std::cout << "barrier non root stream put one message"<< "\n";
-//     #endif
+    #ifndef ACCL_SYNTHESIS
+        std::cout << "barrier non root stream put one message"<< "\n";
+    #endif
 
-//     // wait response from root
-//     tmpword = data.pull().data;
+    // wait response from root
+    tmpword = data.pull().data;
     
-//     #ifndef ACCL_SYNTHESIS
-//         std::cout << "barrier non root receive one message"<< "\n";
-//     #endif
+    #ifndef ACCL_SYNTHESIS
+        std::cout << "barrier non root receive one message"<< "\n";
+    #endif
     
-//     #ifndef ACCL_SYNTHESIS
-//         std::cout << "barrier: finish" << "\n";
-//     #endif
-// }
-
+    #ifndef ACCL_SYNTHESIS
+        std::cout << "barrier: finish" << "\n";
+    #endif
+}
+#else 
+// pass hardware execution but doesn't pass simulation
+// Key is to have a seperate loop for starting the call command
 inline void barrier_root(
     //parameters pertaining to CCLO config
     ap_uint<32> local_rank,
@@ -1046,7 +1050,8 @@ inline void barrier_non_root(
         std::cout << "barrier: finish" << "\n";
     #endif
 }
-}
+#endif
 
+}
 
 

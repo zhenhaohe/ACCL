@@ -22,15 +22,7 @@
 using namespace dlrm_reduce_slave_ns;
 
 void dlrm_reduce_slave_comupute(
-    //reduce configuration
-    unsigned int root,
-    unsigned int function,
-    //parameters pertaining to CCLO config
-    ap_uint<32> comm_adr, 
-    ap_uint<32> dpcfg_adr,
-    //streams to and from CCLO
-    STREAM<command_word> &cmd_to_cclo,
-    STREAM<command_word> &sts_from_cclo,
+    int count_dlrm,
     STREAM<stream_word> &data_to_cclo,
     STREAM<stream_word> &data_from_cclo
 )
@@ -257,17 +249,11 @@ void dlrm_reduce_slave_comupute(
 
 #pragma HLS dataflow disable_start_propagation
 
-    int count_recv = BATCH_NUM * BATCH_SIZE * 3 * 64 * 16;
-    int count_send = BATCH_NUM * BATCH_SIZE * 3 * 64 * 16;
+    int count_recv = count_dlrm;
+    int count_send = count_dlrm;
     //set up interfaces
     accl_hls::ACCLData data_dlrm(data_to_cclo, data_from_cclo);
-    //streaming reduce command to CCLO
-    accl_hls::start(ACCL_REDUCE_PUT, count_recv, comm_adr, root, function, 0, dpcfg_adr, 0, 3, 0, 0, 0, cmd_to_cclo);
-
-    #ifndef ACCL_SYNTHESIS
-        std::cout << "dlrm_reduce_slave: reduce count=" << count_recv << " root=" << root << "\n";
-    #endif
-
+    
     //pull data from CCLO and write it to stream_buf
     data_dlrm.pull_to_stream(s_data_in, count_recv);
 
@@ -299,38 +285,38 @@ void dlrm_reduce_slave_comupute(
         s_feature1_PE30_0, s_feature1_PE30_1, s_feature1_PE31_0, s_feature1_PE31_1);
     
                 
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE0_0, s_feature1_PE0_1, s_result1_PE0);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE1_0, s_feature1_PE1_1, s_result1_PE1);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE2_0, s_feature1_PE2_1, s_result1_PE2);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE3_0, s_feature1_PE3_1, s_result1_PE3);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE4_0, s_feature1_PE4_1, s_result1_PE4);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE5_0, s_feature1_PE5_1, s_result1_PE5);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE6_0, s_feature1_PE6_1, s_result1_PE6);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE7_0, s_feature1_PE7_1, s_result1_PE7);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE8_0, s_feature1_PE8_1, s_result1_PE8);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE9_0, s_feature1_PE9_1, s_result1_PE9);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE10_0, s_feature1_PE10_1, s_result1_PE10);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE11_0, s_feature1_PE11_1, s_result1_PE11);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE12_0, s_feature1_PE12_1, s_result1_PE12);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE13_0, s_feature1_PE13_1, s_result1_PE13);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE14_0, s_feature1_PE14_1, s_result1_PE14);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE15_0, s_feature1_PE15_1, s_result1_PE15);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE16_0, s_feature1_PE16_1, s_result1_PE16);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE17_0, s_feature1_PE17_1, s_result1_PE17);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE18_0, s_feature1_PE18_1, s_result1_PE18);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE19_0, s_feature1_PE19_1, s_result1_PE19);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE20_0, s_feature1_PE20_1, s_result1_PE20);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE21_0, s_feature1_PE21_1, s_result1_PE21);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE22_0, s_feature1_PE22_1, s_result1_PE22);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE23_0, s_feature1_PE23_1, s_result1_PE23);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE24_0, s_feature1_PE24_1, s_result1_PE24);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE25_0, s_feature1_PE25_1, s_result1_PE25);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE26_0, s_feature1_PE26_1, s_result1_PE26);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE27_0, s_feature1_PE27_1, s_result1_PE27);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE28_0, s_feature1_PE28_1, s_result1_PE28);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE29_0, s_feature1_PE29_1, s_result1_PE29);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE30_0, s_feature1_PE30_1, s_result1_PE30);
-    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE31_0, s_feature1_PE31_1, s_result1_PE31);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE0_0, s_feature1_PE0_1, s_result1_PE0);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE1_0, s_feature1_PE1_1, s_result1_PE1);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE2_0, s_feature1_PE2_1, s_result1_PE2);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE3_0, s_feature1_PE3_1, s_result1_PE3);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE4_0, s_feature1_PE4_1, s_result1_PE4);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE5_0, s_feature1_PE5_1, s_result1_PE5);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE6_0, s_feature1_PE6_1, s_result1_PE6);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE7_0, s_feature1_PE7_1, s_result1_PE7);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE8_0, s_feature1_PE8_1, s_result1_PE8);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE9_0, s_feature1_PE9_1, s_result1_PE9);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE10_0, s_feature1_PE10_1, s_result1_PE10);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE11_0, s_feature1_PE11_1, s_result1_PE11);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE12_0, s_feature1_PE12_1, s_result1_PE12);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE13_0, s_feature1_PE13_1, s_result1_PE13);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE14_0, s_feature1_PE14_1, s_result1_PE14);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE15_0, s_feature1_PE15_1, s_result1_PE15);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE16_0, s_feature1_PE16_1, s_result1_PE16);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE17_0, s_feature1_PE17_1, s_result1_PE17);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE18_0, s_feature1_PE18_1, s_result1_PE18);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE19_0, s_feature1_PE19_1, s_result1_PE19);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE20_0, s_feature1_PE20_1, s_result1_PE20);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE21_0, s_feature1_PE21_1, s_result1_PE21);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE22_0, s_feature1_PE22_1, s_result1_PE22);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE23_0, s_feature1_PE23_1, s_result1_PE23);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE24_0, s_feature1_PE24_1, s_result1_PE24);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE25_0, s_feature1_PE25_1, s_result1_PE25);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE26_0, s_feature1_PE26_1, s_result1_PE26);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE27_0, s_feature1_PE27_1, s_result1_PE27);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE28_0, s_feature1_PE28_1, s_result1_PE28);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE29_0, s_feature1_PE29_1, s_result1_PE29);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE30_0, s_feature1_PE30_1, s_result1_PE30);
+    matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1>(s_feature1_PE31_0, s_feature1_PE31_1, s_result1_PE31);
    
     gather_results_32PEs<SLAVE_ROW_PER_PE1>(
         s_result1_PE0, s_result1_PE1, s_result1_PE2, s_result1_PE3,
@@ -359,11 +345,6 @@ void dlrm_reduce_slave_comupute(
 
     // read data from stream_buf and put to CCLO for reduction
     data_dlrm.push_from_stream(s_data_out, count_send, 0);
-
-    accl_hls::finalize(sts_from_cclo);
-    #ifndef ACCL_SYNTHESIS
-        std::cout << "dlrm_reduce_slave: finish reduce" << "\n";
-    #endif
 
 }
 
@@ -409,16 +390,40 @@ void dlrm_reduce_slave(
         data_from_cclo
     );
 
-    // dlrm_reduce_slave_comupute(
-    //     root,
-    //     function,
-    //     reduce_comm_adr, 
-    //     dpcfg_adr,
-    //     cmd_to_cclo,
-    //     sts_from_cclo,
-    //     data_to_cclo,
-    //     data_from_cclo
-    // );
+    // //send out a nop for measurement purposes
+    // accl_hls::start(ACCL_NOP, 0, global_comm_adr, 0, 0, 0, dpcfg_adr, 0, 0, 0, 0, 0, cmd_to_cclo);
+    // accl_hls::finalize(sts_from_cclo);
+    // #ifndef ACCL_SYNTHESIS
+    //     std::cout << "dlrm_reduce_slave barrier finish" << "\n";
+    // #endif
+
+
+    int count_dlrm = BATCH_NUM * BATCH_SIZE * 3 * 64 * 16;
+
+    //streaming reduce command to CCLO
+    accl_hls::start(ACCL_REDUCE_PUT, count_dlrm, reduce_comm_adr, root, function, 0, dpcfg_adr, 0, 3, 0, 0, 0, cmd_to_cclo);
+    #ifndef ACCL_SYNTHESIS
+        std::cout << "dlrm_reduce_slave: reduce count=" << count_dlrm << " root=" << root << "\n";
+    #endif
+
+    dlrm_reduce_slave_comupute(
+        count_dlrm,
+        data_to_cclo,
+        data_from_cclo
+    );
+
+    accl_hls::finalize(sts_from_cclo);
+    #ifndef ACCL_SYNTHESIS
+        std::cout << "dlrm_reduce_slave: finish reduce" << "\n";
+    #endif
+
+    // //send out a nop for measurement purposes
+    // accl_hls::start(ACCL_NOP, 0, global_comm_adr, 0, 0, 0, dpcfg_adr, 0, 0, 0, 0, 0, cmd_to_cclo);
+    // accl_hls::finalize(sts_from_cclo);
+
+    // #ifndef ACCL_SYNTHESIS
+    //     std::cout << "dlrm_reduce_slave NOP finish" << "\n";
+    // #endif
 
 }
 

@@ -492,38 +492,38 @@ static STREAM<ap_uint<512> >    s_data_out;
         s_feature2_PE28_0, s_feature2_PE28_1, s_feature2_PE29_0, s_feature2_PE29_1,
         s_feature2_PE30_0, s_feature2_PE30_1, s_feature2_PE31_0, s_feature2_PE31_1);
 
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_BRAM>(s_feature2_PE0_0, s_feature2_PE0_1, s_result2_PE0);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_URAM>(s_feature2_PE1_0, s_feature2_PE1_1, s_result2_PE1);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_BRAM>(s_feature2_PE2_0, s_feature2_PE2_1, s_result2_PE2);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_URAM>(s_feature2_PE3_0, s_feature2_PE3_1, s_result2_PE3);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_BRAM>(s_feature2_PE4_0, s_feature2_PE4_1, s_result2_PE4);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_URAM>(s_feature2_PE5_0, s_feature2_PE5_1, s_result2_PE5);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_BRAM>(s_feature2_PE6_0, s_feature2_PE6_1, s_result2_PE6);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_URAM>(s_feature2_PE7_0, s_feature2_PE7_1, s_result2_PE7);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_BRAM>(s_feature2_PE8_0, s_feature2_PE8_1, s_result2_PE8);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_URAM>(s_feature2_PE9_0, s_feature2_PE9_1, s_result2_PE9);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_BRAM>(s_feature2_PE10_0, s_feature2_PE10_1, s_result2_PE10);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_URAM>(s_feature2_PE11_0, s_feature2_PE11_1, s_result2_PE11);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_BRAM>(s_feature2_PE12_0, s_feature2_PE12_1, s_result2_PE12);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_URAM>(s_feature2_PE13_0, s_feature2_PE13_1, s_result2_PE13);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_BRAM>(s_feature2_PE14_0, s_feature2_PE14_1, s_result2_PE14);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_URAM>(s_feature2_PE15_0, s_feature2_PE15_1, s_result2_PE15);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_BRAM>(s_feature2_PE16_0, s_feature2_PE16_1, s_result2_PE16);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_URAM>(s_feature2_PE17_0, s_feature2_PE17_1, s_result2_PE17);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_BRAM>(s_feature2_PE18_0, s_feature2_PE18_1, s_result2_PE18);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_URAM>(s_feature2_PE19_0, s_feature2_PE19_1, s_result2_PE19);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_BRAM>(s_feature2_PE20_0, s_feature2_PE20_1, s_result2_PE20);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_URAM>(s_feature2_PE21_0, s_feature2_PE21_1, s_result2_PE21);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_BRAM>(s_feature2_PE22_0, s_feature2_PE22_1, s_result2_PE22);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_URAM>(s_feature2_PE23_0, s_feature2_PE23_1, s_result2_PE23);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_BRAM>(s_feature2_PE24_0, s_feature2_PE24_1, s_result2_PE24);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_URAM>(s_feature2_PE25_0, s_feature2_PE25_1, s_result2_PE25);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_BRAM>(s_feature2_PE26_0, s_feature2_PE26_1, s_result2_PE26);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_URAM>(s_feature2_PE27_0, s_feature2_PE27_1, s_result2_PE27);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_BRAM>(s_feature2_PE28_0, s_feature2_PE28_1, s_result2_PE28);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_URAM>(s_feature2_PE29_0, s_feature2_PE29_1, s_result2_PE29);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_BRAM>(s_feature2_PE30_0, s_feature2_PE30_1, s_result2_PE30);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2, WEIGHT_URAM>(s_feature2_PE31_0, s_feature2_PE31_1, s_result2_PE31);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE0_0, s_feature2_PE0_1, s_result2_PE0);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE1_0, s_feature2_PE1_1, s_result2_PE1);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE2_0, s_feature2_PE2_1, s_result2_PE2);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE3_0, s_feature2_PE3_1, s_result2_PE3);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE4_0, s_feature2_PE4_1, s_result2_PE4);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE5_0, s_feature2_PE5_1, s_result2_PE5);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE6_0, s_feature2_PE6_1, s_result2_PE6);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE7_0, s_feature2_PE7_1, s_result2_PE7);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE8_0, s_feature2_PE8_1, s_result2_PE8);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE9_0, s_feature2_PE9_1, s_result2_PE9);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE10_0, s_feature2_PE10_1, s_result2_PE10);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE11_0, s_feature2_PE11_1, s_result2_PE11);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE12_0, s_feature2_PE12_1, s_result2_PE12);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE13_0, s_feature2_PE13_1, s_result2_PE13);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE14_0, s_feature2_PE14_1, s_result2_PE14);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE15_0, s_feature2_PE15_1, s_result2_PE15);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE16_0, s_feature2_PE16_1, s_result2_PE16);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE17_0, s_feature2_PE17_1, s_result2_PE17);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE18_0, s_feature2_PE18_1, s_result2_PE18);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE19_0, s_feature2_PE19_1, s_result2_PE19);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE20_0, s_feature2_PE20_1, s_result2_PE20);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE21_0, s_feature2_PE21_1, s_result2_PE21);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE22_0, s_feature2_PE22_1, s_result2_PE22);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE23_0, s_feature2_PE23_1, s_result2_PE23);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE24_0, s_feature2_PE24_1, s_result2_PE24);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE25_0, s_feature2_PE25_1, s_result2_PE25);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE26_0, s_feature2_PE26_1, s_result2_PE26);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE27_0, s_feature2_PE27_1, s_result2_PE27);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE28_0, s_feature2_PE28_1, s_result2_PE28);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE29_0, s_feature2_PE29_1, s_result2_PE29);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE30_0, s_feature2_PE30_1, s_result2_PE30);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature2_PE31_0, s_feature2_PE31_1, s_result2_PE31);
 
     gather_results_32PEs_layer_2<AGG_ROW_PER_PE2>(
         s_result2_PE0, s_result2_PE1, s_result2_PE2, s_result2_PE3,
@@ -568,38 +568,38 @@ static STREAM<ap_uint<512> >    s_data_out;
         s_feature3_PE30_0, s_feature3_PE30_1, s_feature3_PE31_0, s_feature3_PE31_1);
                 
 
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_BRAM>(s_feature3_PE0_0, s_feature3_PE0_1, s_result3_PE0);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_URAM>(s_feature3_PE1_0, s_feature3_PE1_1, s_result3_PE1);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_BRAM>(s_feature3_PE2_0, s_feature3_PE2_1, s_result3_PE2);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_URAM>(s_feature3_PE3_0, s_feature3_PE3_1, s_result3_PE3);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_BRAM>(s_feature3_PE4_0, s_feature3_PE4_1, s_result3_PE4);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_URAM>(s_feature3_PE5_0, s_feature3_PE5_1, s_result3_PE5);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_BRAM>(s_feature3_PE6_0, s_feature3_PE6_1, s_result3_PE6);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_URAM>(s_feature3_PE7_0, s_feature3_PE7_1, s_result3_PE7);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_BRAM>(s_feature3_PE8_0, s_feature3_PE8_1, s_result3_PE8);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_URAM>(s_feature3_PE9_0, s_feature3_PE9_1, s_result3_PE9);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_BRAM>(s_feature3_PE10_0, s_feature3_PE10_1, s_result3_PE10);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_URAM>(s_feature3_PE11_0, s_feature3_PE11_1, s_result3_PE11);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_BRAM>(s_feature3_PE12_0, s_feature3_PE12_1, s_result3_PE12);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_URAM>(s_feature3_PE13_0, s_feature3_PE13_1, s_result3_PE13);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_BRAM>(s_feature3_PE14_0, s_feature3_PE14_1, s_result3_PE14);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_URAM>(s_feature3_PE15_0, s_feature3_PE15_1, s_result3_PE15);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_BRAM>(s_feature3_PE16_0, s_feature3_PE16_1, s_result3_PE16);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_URAM>(s_feature3_PE17_0, s_feature3_PE17_1, s_result3_PE17);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_BRAM>(s_feature3_PE18_0, s_feature3_PE18_1, s_result3_PE18);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_URAM>(s_feature3_PE19_0, s_feature3_PE19_1, s_result3_PE19);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_BRAM>(s_feature3_PE20_0, s_feature3_PE20_1, s_result3_PE20);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_URAM>(s_feature3_PE21_0, s_feature3_PE21_1, s_result3_PE21);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_BRAM>(s_feature3_PE22_0, s_feature3_PE22_1, s_result3_PE22);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_URAM>(s_feature3_PE23_0, s_feature3_PE23_1, s_result3_PE23);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_BRAM>(s_feature3_PE24_0, s_feature3_PE24_1, s_result3_PE24);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_URAM>(s_feature3_PE25_0, s_feature3_PE25_1, s_result3_PE25);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_BRAM>(s_feature3_PE26_0, s_feature3_PE26_1, s_result3_PE26);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_URAM>(s_feature3_PE27_0, s_feature3_PE27_1, s_result3_PE27);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_BRAM>(s_feature3_PE28_0, s_feature3_PE28_1, s_result3_PE28);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_URAM>(s_feature3_PE29_0, s_feature3_PE29_1, s_result3_PE29);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_BRAM>(s_feature3_PE30_0, s_feature3_PE30_1, s_result3_PE30);
-    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3, WEIGHT_URAM>(s_feature3_PE31_0, s_feature3_PE31_1, s_result3_PE31);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE0_0, s_feature3_PE0_1, s_result3_PE0);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE1_0, s_feature3_PE1_1, s_result3_PE1);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE2_0, s_feature3_PE2_1, s_result3_PE2);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE3_0, s_feature3_PE3_1, s_result3_PE3);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE4_0, s_feature3_PE4_1, s_result3_PE4);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE5_0, s_feature3_PE5_1, s_result3_PE5);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE6_0, s_feature3_PE6_1, s_result3_PE6);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE7_0, s_feature3_PE7_1, s_result3_PE7);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE8_0, s_feature3_PE8_1, s_result3_PE8);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE9_0, s_feature3_PE9_1, s_result3_PE9);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE10_0, s_feature3_PE10_1, s_result3_PE10);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE11_0, s_feature3_PE11_1, s_result3_PE11);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE12_0, s_feature3_PE12_1, s_result3_PE12);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE13_0, s_feature3_PE13_1, s_result3_PE13);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE14_0, s_feature3_PE14_1, s_result3_PE14);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE15_0, s_feature3_PE15_1, s_result3_PE15);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE16_0, s_feature3_PE16_1, s_result3_PE16);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE17_0, s_feature3_PE17_1, s_result3_PE17);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE18_0, s_feature3_PE18_1, s_result3_PE18);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE19_0, s_feature3_PE19_1, s_result3_PE19);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE20_0, s_feature3_PE20_1, s_result3_PE20);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE21_0, s_feature3_PE21_1, s_result3_PE21);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE22_0, s_feature3_PE22_1, s_result3_PE22);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE23_0, s_feature3_PE23_1, s_result3_PE23);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE24_0, s_feature3_PE24_1, s_result3_PE24);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE25_0, s_feature3_PE25_1, s_result3_PE25);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE26_0, s_feature3_PE26_1, s_result3_PE26);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE27_0, s_feature3_PE27_1, s_result3_PE27);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE28_0, s_feature3_PE28_1, s_result3_PE28);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE29_0, s_feature3_PE29_1, s_result3_PE29);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE30_0, s_feature3_PE30_1, s_result3_PE30);
+    matmul_PE_UNROLL8<AGG_HIDDEN_SIZE2, AGG_ROW_PER_PE3>(s_feature3_PE31_0, s_feature3_PE31_1, s_result3_PE31);
 
     gather_results_32PEs_layer_3<AGG_ROW_PER_PE3>(
         s_result3_PE0, s_result3_PE1, s_result3_PE2, s_result3_PE3,
@@ -644,7 +644,7 @@ void dlrm_agg(
 #pragma HLS INTERFACE s_axilite port=comm_size
 #pragma HLS INTERFACE s_axilite port=comm_adr
 #pragma HLS INTERFACE s_axilite port=dpcfg_adr
-#pragma HLS INTERFACE m_axi port=dst offset=slave
+#pragma HLS INTERFACE m_axi port=dst depth=1600 offset=slave
 #pragma HLS INTERFACE axis port=cmd_to_cclo
 #pragma HLS INTERFACE axis port=sts_from_cclo
 #pragma HLS INTERFACE axis port=data_to_cclo
@@ -663,19 +663,26 @@ void dlrm_agg(
         data_from_cclo
     );
 
-    // dlrm_agg_compute(
-    //     dst,
-    //     data_to_cclo,
-    //     data_from_cclo
-    // );
-
     // //send out a nop for measurement purposes
     // accl_hls::start(ACCL_NOP, 0, comm_adr, 0, 0, 0, dpcfg_adr, 0, 0, 0, 0, 0, cmd_to_cclo);
     // accl_hls::finalize(sts_from_cclo);
-
     // #ifndef ACCL_SYNTHESIS
-    //     std::cout << "dlrm_agg NOP finish" << "\n";
+    //     std::cout << "dlrm_agg barrier finish" << "\n";
     // #endif
+
+    dlrm_agg_compute(
+        dst,
+        data_to_cclo,
+        data_from_cclo
+    );
+
+    //send out a nop for measurement purposes
+    accl_hls::start(ACCL_NOP, 0, comm_adr, 0, 0, 0, dpcfg_adr, 0, 0, 0, 0, 0, cmd_to_cclo);
+    accl_hls::finalize(sts_from_cclo);
+
+    #ifndef ACCL_SYNTHESIS
+        std::cout << "dlrm_agg NOP finish" << "\n";
+    #endif
 
 }
 

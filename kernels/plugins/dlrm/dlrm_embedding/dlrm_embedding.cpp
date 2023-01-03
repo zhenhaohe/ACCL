@@ -30,14 +30,11 @@ void dlrm_embedding_compute(
     int *table_HBM5,
     int *table_HBM6,
     int *table_HBM7,
-    unsigned int destination,
-    ap_uint<32> comm_adr, 
-    ap_uint<32> dpcfg_adr,
-    STREAM<command_word> &cmd_to_cclo,
-    STREAM<command_word> &sts_from_cclo,
+    int dlrm_count,
     STREAM<stream_word> &data_to_cclo,
     STREAM<stream_word> &data_from_cclo)
 {
+    // t_axi is int type
     STREAM<t_axi> s_embedding_buffer_HBM0;
     STREAM<t_axi> s_embedding_buffer_HBM1;
     STREAM<t_axi> s_embedding_buffer_HBM2;
@@ -47,6 +44,9 @@ void dlrm_embedding_compute(
     STREAM<t_axi> s_embedding_buffer_HBM6;
     STREAM<t_axi> s_embedding_buffer_HBM7;
 
+// const int depth_s_embedding_buffer_HBM0 = VECTOR_SIZE_HBM_BANK_0 * FIFO_BATCH_SIZE;
+// VECTOR_SIZE_HBM_BANK_0=32
+// FIFO_BATCH_SIZE=8
 #pragma HLS stream variable=s_embedding_buffer_HBM0 depth=depth_s_embedding_buffer_HBM0
 #pragma HLS stream variable=s_embedding_buffer_HBM1 depth=depth_s_embedding_buffer_HBM1
 #pragma HLS stream variable=s_embedding_buffer_HBM2 depth=depth_s_embedding_buffer_HBM2
@@ -56,6 +56,7 @@ void dlrm_embedding_compute(
 #pragma HLS stream variable=s_embedding_buffer_HBM6 depth=depth_s_embedding_buffer_HBM6
 #pragma HLS stream variable=s_embedding_buffer_HBM7 depth=depth_s_embedding_buffer_HBM7
 
+    // W_TYPE is 128 bit
     STREAM<W_TYPE> s_embedding_buffer_wide_HBM0_1;
     STREAM<W_TYPE> s_embedding_buffer_wide_HBM1_1;
     STREAM<W_TYPE> s_embedding_buffer_wide_HBM2_1;
@@ -65,6 +66,8 @@ void dlrm_embedding_compute(
     STREAM<W_TYPE> s_embedding_buffer_wide_HBM6_1;
     STREAM<W_TYPE> s_embedding_buffer_wide_HBM7_1;
 
+//const int depth_s_embedding_buffer_wide_HBM0 = VECTOR_SIZE_HBM_BANK_0 * FIFO_BATCH_SIZE / 4;
+// depth 128
 #pragma HLS stream variable=s_embedding_buffer_wide_HBM0_1 depth=depth_s_embedding_buffer_wide_HBM0
 #pragma HLS stream variable=s_embedding_buffer_wide_HBM1_1 depth=depth_s_embedding_buffer_wide_HBM1
 #pragma HLS stream variable=s_embedding_buffer_wide_HBM2_1 depth=depth_s_embedding_buffer_wide_HBM2
@@ -100,7 +103,7 @@ void dlrm_embedding_compute(
     STREAM<int> s_idx_buffer_HBM5;
     STREAM<int> s_idx_buffer_HBM6;
     STREAM<int> s_idx_buffer_HBM7;
-
+// depth fifo_batch_size = 8
 #pragma HLS stream variable=s_idx_buffer_HBM0 depth=fifo_batch_size
 #pragma HLS stream variable=s_idx_buffer_HBM1 depth=fifo_batch_size
 #pragma HLS stream variable=s_idx_buffer_HBM2 depth=fifo_batch_size
@@ -307,6 +310,9 @@ void dlrm_embedding_compute(
     STREAM<W_TYPE> s_feature1_PE31_0;
     STREAM<W_TYPE> s_feature1_PE31_1;
     STREAM<D_TYPE> s_result1_PE31;
+#pragma HLS stream variable=s_feature1_PE31_0 depth=2
+#pragma HLS stream variable=s_feature1_PE31_1 depth=2
+#pragma HLS stream variable=s_result1_PE31 depth=2
 
     STREAM<ap_uint<512> > s_result1_partial_0;
 #pragma HLS stream variable=s_result1_partial_0 depth=128
@@ -330,6 +336,7 @@ void dlrm_embedding_compute(
         s_idx_buffer_HBM4, s_idx_buffer_HBM5, s_idx_buffer_HBM6, s_idx_buffer_HBM7
         );
 
+    // read 32 times per inference and deliever 32 int to embeding buffer
     load_single_embedding_2_tables<ADDR_AXI_HBM_0, AXI_PADDED_SIZE_HBM_0, ADDR_AXI_HBM_32, AXI_PADDED_SIZE_HBM_32, EMBEDDING_ROW_PER_PE1>(
         s_idx_buffer_HBM0, table_HBM0, s_embedding_buffer_HBM0);
     load_single_embedding_2_tables<ADDR_AXI_HBM_1, AXI_PADDED_SIZE_HBM_1, ADDR_AXI_HBM_33, AXI_PADDED_SIZE_HBM_33, EMBEDDING_ROW_PER_PE1>(
@@ -347,6 +354,7 @@ void dlrm_embedding_compute(
     load_single_embedding_2_tables<ADDR_AXI_HBM_7, AXI_PADDED_SIZE_HBM_7, ADDR_AXI_HBM_39, AXI_PADDED_SIZE_HBM_39, EMBEDDING_ROW_PER_PE1>(
         s_idx_buffer_HBM7, table_HBM7, s_embedding_buffer_HBM7);
 
+    // converts int to 128-bit type -> 8 wide type per inference
     int_to_wide<t_axi, VECTOR_SIZE_HBM_BANK_0, EMBEDDING_ROW_PER_PE1>(s_embedding_buffer_HBM0, s_embedding_buffer_wide_HBM0_1);
     int_to_wide<t_axi, VECTOR_SIZE_HBM_BANK_1, EMBEDDING_ROW_PER_PE1>(s_embedding_buffer_HBM1, s_embedding_buffer_wide_HBM1_1);
     int_to_wide<t_axi, VECTOR_SIZE_HBM_BANK_2, EMBEDDING_ROW_PER_PE1>(s_embedding_buffer_HBM2, s_embedding_buffer_wide_HBM2_1);
@@ -356,6 +364,7 @@ void dlrm_embedding_compute(
     int_to_wide<t_axi, VECTOR_SIZE_HBM_BANK_6, EMBEDDING_ROW_PER_PE1>(s_embedding_buffer_HBM6, s_embedding_buffer_wide_HBM6_1);
     int_to_wide<t_axi, VECTOR_SIZE_HBM_BANK_7, EMBEDDING_ROW_PER_PE1>(s_embedding_buffer_HBM7, s_embedding_buffer_wide_HBM7_1);
 
+    // creates 2 512-bit vectors per inference per bank
     gather_embeddings_8<VECTOR_SIZE_HBM_BANK_0, VECTOR_SIZE_HBM_BANK_1, VECTOR_SIZE_HBM_BANK_2, VECTOR_SIZE_HBM_BANK_3, VECTOR_SIZE_HBM_BANK_4, VECTOR_SIZE_HBM_BANK_5, VECTOR_SIZE_HBM_BANK_6, VECTOR_SIZE_HBM_BANK_7, EMBEDDING_ROW_PER_PE1>(
         s_embedding_buffer_wide_HBM0_1, 
         s_embedding_buffer_wide_HBM1_1, 
@@ -367,11 +376,16 @@ void dlrm_embedding_compute(
         s_embedding_buffer_wide_HBM7_1,
         s_embedding_0);
 
+    // read 16 512-bit words from the s_embedding_0 and also pad another 34 512-bits words to match the next function
     gather_embeddings<EMBEDDING_ROW_PER_PE1>(s_embedding_0, s_feature_in);
 
     // feature words is BATCH_NUM * BATCH_SIZE * FEATURE_SIZE / INTS_PER_W / 4 = 50
+    // s_embedding_table is 50 words
+    // s_feature_out is EMBEDDING_ROW_PER_PE1 * 50 = 100
     store_features<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1>(s_feature_in, s_feature_out, s_embedding_table);
 
+    // every 512 bit is divided to 4 * 128 bit partial vector
+    // every output PE port is written twice
     replicate_feature_512PEs_32PE<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1>(
         s_feature_out, 
         s_feature1_PE0_0, s_feature1_PE0_1, s_feature1_PE1_0, s_feature1_PE1_1,
@@ -391,38 +405,40 @@ void dlrm_embedding_compute(
         s_feature1_PE28_0, s_feature1_PE28_1, s_feature1_PE29_0, s_feature1_PE29_1,
         s_feature1_PE30_0, s_feature1_PE30_1, s_feature1_PE31_0, s_feature1_PE31_1);
 
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE0_0, s_feature1_PE0_1, s_result1_PE0);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE1_0, s_feature1_PE1_1, s_result1_PE1);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE2_0, s_feature1_PE2_1, s_result1_PE2);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE3_0, s_feature1_PE3_1, s_result1_PE3);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE4_0, s_feature1_PE4_1, s_result1_PE4);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE5_0, s_feature1_PE5_1, s_result1_PE5);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE6_0, s_feature1_PE6_1, s_result1_PE6);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE7_0, s_feature1_PE7_1, s_result1_PE7);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE8_0, s_feature1_PE8_1, s_result1_PE8);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE9_0, s_feature1_PE9_1, s_result1_PE9);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE10_0, s_feature1_PE10_1, s_result1_PE10);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE11_0, s_feature1_PE11_1, s_result1_PE11);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE12_0, s_feature1_PE12_1, s_result1_PE12);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE13_0, s_feature1_PE13_1, s_result1_PE13);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE14_0, s_feature1_PE14_1, s_result1_PE14);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE15_0, s_feature1_PE15_1, s_result1_PE15);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE16_0, s_feature1_PE16_1, s_result1_PE16);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE17_0, s_feature1_PE17_1, s_result1_PE17);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE18_0, s_feature1_PE18_1, s_result1_PE18);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE19_0, s_feature1_PE19_1, s_result1_PE19);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE20_0, s_feature1_PE20_1, s_result1_PE20);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE21_0, s_feature1_PE21_1, s_result1_PE21);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE22_0, s_feature1_PE22_1, s_result1_PE22);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE23_0, s_feature1_PE23_1, s_result1_PE23);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE24_0, s_feature1_PE24_1, s_result1_PE24);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE25_0, s_feature1_PE25_1, s_result1_PE25);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE26_0, s_feature1_PE26_1, s_result1_PE26);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE27_0, s_feature1_PE27_1, s_result1_PE27);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE28_0, s_feature1_PE28_1, s_result1_PE28);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE29_0, s_feature1_PE29_1, s_result1_PE29);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_BRAM>(s_feature1_PE30_0, s_feature1_PE30_1, s_result1_PE30);
-    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1, WEIGHT_URAM>(s_feature1_PE31_0, s_feature1_PE31_1, s_result1_PE31);
+    // every PE feature is read 200 times and produce 2 result vector per inference
+    // write out ROW_PER_PE times 32 bit result vector per inference
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE0_0, s_feature1_PE0_1, s_result1_PE0);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE1_0, s_feature1_PE1_1, s_result1_PE1);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE2_0, s_feature1_PE2_1, s_result1_PE2);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE3_0, s_feature1_PE3_1, s_result1_PE3);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE4_0, s_feature1_PE4_1, s_result1_PE4);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE5_0, s_feature1_PE5_1, s_result1_PE5);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE6_0, s_feature1_PE6_1, s_result1_PE6);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE7_0, s_feature1_PE7_1, s_result1_PE7);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE8_0, s_feature1_PE8_1, s_result1_PE8);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE9_0, s_feature1_PE9_1, s_result1_PE9);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE10_0, s_feature1_PE10_1, s_result1_PE10);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE11_0, s_feature1_PE11_1, s_result1_PE11);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE12_0, s_feature1_PE12_1, s_result1_PE12);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE13_0, s_feature1_PE13_1, s_result1_PE13);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE14_0, s_feature1_PE14_1, s_result1_PE14);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE15_0, s_feature1_PE15_1, s_result1_PE15);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE16_0, s_feature1_PE16_1, s_result1_PE16);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE17_0, s_feature1_PE17_1, s_result1_PE17);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE18_0, s_feature1_PE18_1, s_result1_PE18);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE19_0, s_feature1_PE19_1, s_result1_PE19);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE20_0, s_feature1_PE20_1, s_result1_PE20);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE21_0, s_feature1_PE21_1, s_result1_PE21);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE22_0, s_feature1_PE22_1, s_result1_PE22);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE23_0, s_feature1_PE23_1, s_result1_PE23);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE24_0, s_feature1_PE24_1, s_result1_PE24);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE25_0, s_feature1_PE25_1, s_result1_PE25);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE26_0, s_feature1_PE26_1, s_result1_PE26);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE27_0, s_feature1_PE27_1, s_result1_PE27);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE28_0, s_feature1_PE28_1, s_result1_PE28);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE29_0, s_feature1_PE29_1, s_result1_PE29);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE30_0, s_feature1_PE30_1, s_result1_PE30);
+    matmul_PE_UNROLL8<EMBEDDING_INPUT_SIZE, EMBEDDING_ROW_PER_PE1 >(s_feature1_PE31_0, s_feature1_PE31_1, s_result1_PE31);
 
     gather_results_32PEs<EMBEDDING_ROW_PER_PE1>(
         s_result1_PE0, s_result1_PE1, s_result1_PE2, s_result1_PE3,
@@ -435,6 +451,7 @@ void dlrm_embedding_compute(
         s_result1_PE28, s_result1_PE29, s_result1_PE30, s_result1_PE31,
         s_result1_partial_0);
 
+    // read 2 * ROW_PER_PE times s_result1_partial_0 per inference
     // creates 64 words 
     gather_results_node1<EMBEDDING_ROW_PER_PE1>(
         s_result1_partial_0,
@@ -446,26 +463,11 @@ void dlrm_embedding_compute(
     //embedding 50 word, results 64 words, data out is padded to 192 words
     dataTransform(s_embedding_table, s_result1_node1, s_padded_zero, s_data_out);
 
-    int dlrm_count = BATCH_NUM * BATCH_SIZE * 3 * 64 * 16;
-
     //set up interfaces
     accl_hls::ACCLData data_dlrm(data_to_cclo, data_from_cclo);
 
-    //send command to CCLO
-    accl_hls::start(ACCL_SEND, dlrm_count, comm_adr, destination, 0, 9, dpcfg_adr, 0, 3, 0, 0, 0, cmd_to_cclo);
-
-    #ifndef ACCL_SYNTHESIS
-        std::cout << "dlrm_embedding: stream_put count=" << dlrm_count << " destination=" << destination << "\n";
-    #endif
-
     //and push the result into the CCLO stream
     data_dlrm.push_from_stream(s_data_out, dlrm_count, 0);
-    // finalize the call
-    accl_hls::finalize(sts_from_cclo);
-
-    #ifndef ACCL_SYNTHESIS
-        std::cout << "dlrm_embedding: finish" << "\n";
-    #endif
 
 }
 
@@ -496,14 +498,14 @@ void dlrm_embedding(
 #pragma HLS INTERFACE s_axilite port=comm_size
 #pragma HLS INTERFACE s_axilite port=comm_adr
 #pragma HLS INTERFACE s_axilite port=dpcfg_adr
-#pragma HLS INTERFACE m_axi port=table_HBM0 offset=slave bundle  = gmem7
-#pragma HLS INTERFACE m_axi port=table_HBM1 offset=slave bundle  = gmem8
-#pragma HLS INTERFACE m_axi port=table_HBM2 offset=slave bundle  = gmem9
-#pragma HLS INTERFACE m_axi port=table_HBM3 offset=slave bundle  = gmem10
-#pragma HLS INTERFACE m_axi port=table_HBM4 offset=slave bundle  = gmem11
-#pragma HLS INTERFACE m_axi port=table_HBM5 offset=slave bundle  = gmem12
-#pragma HLS INTERFACE m_axi port=table_HBM6 offset=slave bundle  = gmem13
-#pragma HLS INTERFACE m_axi port=table_HBM7 offset=slave bundle  = gmem14
+#pragma HLS INTERFACE m_axi port=table_HBM0 depth=1600 offset=slave bundle  = gmem7
+#pragma HLS INTERFACE m_axi port=table_HBM1 depth=1600 offset=slave bundle  = gmem8
+#pragma HLS INTERFACE m_axi port=table_HBM2 depth=1600 offset=slave bundle  = gmem9
+#pragma HLS INTERFACE m_axi port=table_HBM3 depth=1600 offset=slave bundle  = gmem10
+#pragma HLS INTERFACE m_axi port=table_HBM4 depth=1600 offset=slave bundle  = gmem11
+#pragma HLS INTERFACE m_axi port=table_HBM5 depth=1600 offset=slave bundle  = gmem12
+#pragma HLS INTERFACE m_axi port=table_HBM6 depth=1600 offset=slave bundle  = gmem13
+#pragma HLS INTERFACE m_axi port=table_HBM7 depth=1600 offset=slave bundle  = gmem14
 
 #pragma HLS INTERFACE axis port=cmd_to_cclo
 #pragma HLS INTERFACE axis port=sts_from_cclo
@@ -522,25 +524,49 @@ void dlrm_embedding(
         data_to_cclo,
         data_from_cclo
     );
+
+    // //send out a nop for measurement purposes
+    // accl_hls::start(ACCL_NOP, 0, comm_adr, 0, 0, 0, dpcfg_adr, 0, 0, 0, 0, 0, cmd_to_cclo);
+    // accl_hls::finalize(sts_from_cclo);
+    // #ifndef ACCL_SYNTHESIS
+    //     std::cout << "dlrm_embedding barrier finish" << "\n";
+    // #endif
     
+    int dlrm_count = BATCH_NUM * BATCH_SIZE * 3 * 64 * 16;
+
+    //send command to CCLO
+    accl_hls::start(ACCL_SEND, dlrm_count, comm_adr, destination, 0, 9, dpcfg_adr, 0, 3, 0, 0, 0, cmd_to_cclo);
+    #ifndef ACCL_SYNTHESIS
+        std::cout << "dlrm_embedding: stream_put count=" << dlrm_count << " destination=" << destination << "\n";
+    #endif
     
-    // // dlrm data flow
-    // dlrm_embedding_compute(
-    //     table_HBM0,
-    //     table_HBM1,
-    //     table_HBM2,
-    //     table_HBM3,
-    //     table_HBM4,
-    //     table_HBM5,
-    //     table_HBM6,
-    //     table_HBM7,
-    //     destination,
-    //     comm_adr, 
-    //     dpcfg_adr,
-    //     cmd_to_cclo,
-    //     sts_from_cclo,
-    //     data_to_cclo,
-    //     data_from_cclo);
+    // dlrm data flow
+    dlrm_embedding_compute(
+        table_HBM0,
+        table_HBM1,
+        table_HBM2,
+        table_HBM3,
+        table_HBM4,
+        table_HBM5,
+        table_HBM6,
+        table_HBM7,
+        dlrm_count,
+        data_to_cclo,
+        data_from_cclo);
+
+    // finalize the call
+    accl_hls::finalize(sts_from_cclo);
+    #ifndef ACCL_SYNTHESIS
+        std::cout << "dlrm_embedding: finish" << "\n";
+    #endif
+
+    // //send out a nop for measurement purposes
+    // accl_hls::start(ACCL_NOP, 0, comm_adr, 0, 0, 0, dpcfg_adr, 0, 0, 0, 0, 0, cmd_to_cclo);
+    // accl_hls::finalize(sts_from_cclo);
+
+    // #ifndef ACCL_SYNTHESIS
+    //     std::cout << "dlrm_embedding NOP finish" << "\n";
+    // #endif
     
 }
 

@@ -16,7 +16,7 @@
 #
 # *******************************************************************************/
 
-DLRM_IPS = dlrm_agg dlrm_embedding dlrm_reduce_slave dlrm_reduce_root dlrm_embedding_reduce
+DLRM_IPS = dlrm_agg dlrm_embedding dlrm_reduce_slave dlrm_reduce_root 
 TARGET=ip
 PLATFORM ?= xilinx_u280_xdma_201920_3
 DEBUG ?= none
@@ -33,7 +33,7 @@ endif
 
 all: $(DLRM_IPS)
 
-.PHONY: dlrm_agg dlrm_embedding dlrm_reduce_slave dlrm_reduce_root dlrm_embedding_reduce
+.PHONY: dlrm_agg dlrm_embedding dlrm_reduce_slave dlrm_reduce_root 
 
 $(DLRM_IPS):
 	$(MAKE) -C $@ DEVICE=$(FPGAPART) TARGET=$(TARGET)

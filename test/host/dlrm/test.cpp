@@ -1048,7 +1048,7 @@ void start_test(options_t options) {
   MPI_Barrier(MPI_COMM_WORLD);
 
   // Enable the benchmarking
-  if (own_role == DLRM_AGG_ROLE)
+  if (own_role == DLRM_AGG_ROLE || own_role == DLRM_EMBED_ROLE)
   {
     std::cout << "Enable hw bench kernel" << std::endl;
     auto hw_bench_krnl = xrt::kernel(device, device.get_xclbin_uuid(), "collector:{collector_0}",xrt::kernel::cu_access_mode::exclusive);  
@@ -1067,7 +1067,16 @@ void start_test(options_t options) {
     buf_hw_bench_cmd.sync(XCL_BO_SYNC_BO_TO_DEVICE);
     buf_hw_bench_sts.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-    int hw_bench_record = CONFIG_HW_BENCH_RECORD + (size-1) + 1;
+    int hw_bench_record;
+    
+    if (own_role == DLRM_AGG_ROLE)
+    {
+      hw_bench_record = CONFIG_HW_BENCH_RECORD+(size-1)+1+1;
+    } else 
+    {
+      hw_bench_record = CONFIG_HW_BENCH_RECORD+1+1+1;
+    }
+     
 
     std::cout << "Execution of the kernel\n";
     auto run = hw_bench_krnl((hw_bench_record), buf_hw_bench_cmd, buf_hw_bench_sts);

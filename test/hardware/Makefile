@@ -144,7 +144,7 @@ else ifeq (tcp, $(MODE))
 else ifeq (tcp_dlrm_embedding, $(MODE))
 	CMAC_TCP_XO=Vitis_with_100Gbps_TCP-IP/_x.hw.$(XSA)/cmac_krnl.xo
 	NET_XO = $(TCP_XO) $(CMAC_TCP_XO)
-	OTHER_XO = $(LOOPBACK_XO) $(DLRM_EMBEDDING_XO)
+	OTHER_XO = $(LOOPBACK_XO) $(DLRM_EMBEDDING_XO) $(COLLECTOR_XO) $(HW_BENCH_XO)
 	ARITHMETIC_XO = $(SUM_XO)
 	CONFIG += --advanced.param compiler.userPostSysLinkOverlayTcl=$(shell pwd)/Vitis_with_100Gbps_TCP-IP/scripts/post_sys_link.tcl
 	CONFIG += --user_ip_repo_paths Vitis_with_100Gbps_TCP-IP/build/fpga-network-stack/iprepo
@@ -157,7 +157,7 @@ else ifeq (tcp_dlrm_embedding, $(MODE))
 else ifeq (tcp_dlrm_reduce_slave, $(MODE))
 	CMAC_TCP_XO=Vitis_with_100Gbps_TCP-IP/_x.hw.$(XSA)/cmac_krnl.xo
 	NET_XO = $(TCP_XO) $(CMAC_TCP_XO)
-	OTHER_XO = $(LOOPBACK_XO) $(DLRM_REDUCE_SLAVE_XO)
+	OTHER_XO = $(LOOPBACK_XO) $(DLRM_REDUCE_SLAVE_XO) $(COLLECTOR_XO) $(HW_BENCH_XO)
 	ARITHMETIC_XO = $(SUM_XO)
 	CONFIG += --advanced.param compiler.userPostSysLinkOverlayTcl=$(shell pwd)/Vitis_with_100Gbps_TCP-IP/scripts/post_sys_link.tcl
 	CONFIG += --user_ip_repo_paths Vitis_with_100Gbps_TCP-IP/build/fpga-network-stack/iprepo
@@ -170,7 +170,7 @@ else ifeq (tcp_dlrm_reduce_slave, $(MODE))
 else ifeq (tcp_dlrm_reduce_root, $(MODE))
 	CMAC_TCP_XO=Vitis_with_100Gbps_TCP-IP/_x.hw.$(XSA)/cmac_krnl.xo
 	NET_XO = $(TCP_XO) $(CMAC_TCP_XO)
-	OTHER_XO = $(LOOPBACK_XO) $(DLRM_REDUCE_ROOT_XO)
+	OTHER_XO = $(LOOPBACK_XO) $(DLRM_REDUCE_ROOT_XO) $(COLLECTOR_XO) $(HW_BENCH_XO)
 	ARITHMETIC_XO = $(SUM_XO)
 	CONFIG += --advanced.param compiler.userPostSysLinkOverlayTcl=$(shell pwd)/Vitis_with_100Gbps_TCP-IP/scripts/post_sys_link.tcl
 	CONFIG += --user_ip_repo_paths Vitis_with_100Gbps_TCP-IP/build/fpga-network-stack/iprepo

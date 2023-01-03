@@ -149,32 +149,41 @@ void replicate_feature_in_16(
     STREAM<ap_uint<512> > & s_feature_in_14, STREAM<ap_uint<512> > & s_feature_in_15);
 
 
-template<const int FEATURE_SIZE, const int ROW_PER_PE, const int WEIGHT_RAM>
+// template<const int FEATURE_SIZE, const int ROW_PER_PE, const int WEIGHT_RAM>
+// void matmul_PE_UNROLL8(
+//     STREAM<W_TYPE>& s_feature_PE_0,
+//     STREAM<W_TYPE>& s_feature_PE_1,
+//     STREAM<D_TYPE>& s_result_PE);
+
+// template<>
+// void matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(
+//     STREAM<W_TYPE>& s_feature_PE_0,
+//     STREAM<W_TYPE>& s_feature_PE_1,
+//     STREAM<D_TYPE>& s_result_PE);
+
+// template<>
+// void matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(
+//     STREAM<W_TYPE>& s_feature_PE_0,
+//     STREAM<W_TYPE>& s_feature_PE_1,
+//     STREAM<D_TYPE>& s_result_PE);
+
+template<const int FEATURE_SIZE, const int ROW_PER_PE>
 void matmul_PE_UNROLL8(
     STREAM<W_TYPE>& s_feature_PE_0,
     STREAM<W_TYPE>& s_feature_PE_1,
     STREAM<D_TYPE>& s_result_PE);
 
-template<>
-void matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(
-    STREAM<W_TYPE>& s_feature_PE_0,
-    STREAM<W_TYPE>& s_feature_PE_1,
-    STREAM<D_TYPE>& s_result_PE);
+// template<const int FEATURE_SIZE, const int ROW_PER_PE, const int INDEX_ROW>
+// void init_weights(W_TYPE* weights_transpose); 
 
-template<>
-void matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(
-    STREAM<W_TYPE>& s_feature_PE_0,
-    STREAM<W_TYPE>& s_feature_PE_1,
-    STREAM<D_TYPE>& s_result_PE);
+// template<>
+// void init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(W_TYPE* weights_transpose_local);
 
-template<const int FEATURE_SIZE, const int ROW_PER_PE, const int INDEX_ROW>
+// template<>
+// void init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(W_TYPE* weights_transpose_local);
+
+template<const int FEATURE_SIZE, const int ROW_PER_PE>
 void init_weights(W_TYPE* weights_transpose); 
-
-template<>
-void init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(W_TYPE* weights_transpose_local);
-
-template<>
-void init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(W_TYPE* weights_transpose_local);
 
 template<const int FEATURE_SIZE>
 void replicate_feature_512PEs_216PE(
@@ -2367,7 +2376,7 @@ void store_features(
 {
 
     ap_uint<512> features_local[FEATURE_SIZE / INTS_PER_W / 4];
-#pragma HLS resource variable=features_local core=RAM_1P_URAM
+#pragma HLS BIND_STORAGE variable=features_local type=RAM_1P impl=URAM
 
     for_each_item:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
@@ -5648,35 +5657,159 @@ void replicate_feature_512PEs_29PE(
     }
 }
 
-template<>
-void matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(
+// template<>
+// void matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(
+//     STREAM<W_TYPE>& s_feature_PE_0,
+//     STREAM<W_TYPE>& s_feature_PE_1,
+//     STREAM<D_TYPE>& s_result_PE) {
+// #pragma HLS inline off
+
+//     W_TYPE weights_transpose_local[SLAVE_ROW_PER_PE1 * SLAVE_INPUT_SIZE / INTS_PER_W];
+// #pragma HLS BIND_STORAGE variable=weights_transpose_local type=RAM_2P impl=BRAM
+
+//     init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(weights_transpose_local);
+    
+//     item_loop:
+//     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
+//         #pragma HLS pipeline II=1
+//         row_loop:
+//         for (int result_idx = 0; result_idx < SLAVE_ROW_PER_PE1; result_idx++) {
+//             #pragma HLS pipeline II=1
+//             D_TYPE result = 0;
+//             dot_product:
+//             // NOTE: manually unroll 2 here
+//             for (int d = 0; d < SLAVE_INPUT_SIZE / INTS_PER_W / 2; d++) {
+//                 #pragma HLS pipeline II=1
+//                 W_TYPE reg_f_0 = s_feature_PE_0.read();
+//                 W_TYPE reg_f_1 = s_feature_PE_1.read();
+//                 W_TYPE reg_w_0 = weights_transpose_local[
+//                     result_idx * SLAVE_INPUT_SIZE / INTS_PER_W / 2 + 2 * d];
+//                 W_TYPE reg_w_1 = weights_transpose_local[
+//                     result_idx * SLAVE_INPUT_SIZE / INTS_PER_W / 2 + 2 * d + 1];
+
+//                 D_TYPE first_f_0 = reg_f_0.range(31, 0);
+//                 D_TYPE second_f_0 = reg_f_0.range(63, 32);
+//                 D_TYPE third_f_0 = reg_f_0.range(95, 64);
+//                 D_TYPE fourth_f_0 = reg_f_0.range(127, 96);
+
+//                 D_TYPE first_w_0= reg_w_0.range(31, 0);
+//                 D_TYPE second_w_0 = reg_w_0.range(63, 32);
+//                 D_TYPE third_w_0 = reg_w_0.range(95, 64);
+//                 D_TYPE fourth_w_0 = reg_w_0.range(127, 96);
+
+//                 D_TYPE first_f_1 = reg_f_1.range(31, 0);
+//                 D_TYPE second_f_1 = reg_f_1.range(63, 32);
+//                 D_TYPE third_f_1 = reg_f_1.range(95, 64);
+//                 D_TYPE fourth_f_1 = reg_f_1.range(127, 96);
+
+//                 D_TYPE first_w_1= reg_w_1.range(31, 0);
+//                 D_TYPE second_w_1 = reg_w_1.range(63, 32);
+//                 D_TYPE third_w_1 = reg_w_1.range(95, 64);
+//                 D_TYPE fourth_w_1 = reg_w_1.range(127, 96);
+
+                
+//                 result += 
+//                     first_f_0 * first_w_0 + second_f_0 * second_w_0 + 
+//                     third_f_0 * third_w_0 + fourth_f_0 * fourth_w_0 + 
+//                     first_f_1 * first_w_1 + second_f_1 * second_w_1 + 
+//                     third_f_1 * third_w_1 + fourth_f_1 * fourth_w_1;
+//             }
+//             s_result_PE.write(result);
+//         }
+//     }
+// } 
+
+// template<>
+// void matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(
+//     STREAM<W_TYPE>& s_feature_PE_0,
+//     STREAM<W_TYPE>& s_feature_PE_1,
+//     STREAM<D_TYPE>& s_result_PE) {
+// #pragma HLS inline off
+
+//     W_TYPE weights_transpose_local[SLAVE_ROW_PER_PE1 * SLAVE_INPUT_SIZE / INTS_PER_W];
+// #pragma HLS BIND_STORAGE variable=weights_transpose_local type=RAM_2P impl=URAM
+
+//     init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(weights_transpose_local);
+
+//     item_loop:
+//     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
+//         #pragma HLS pipeline II=1
+//         row_loop:
+//         for (int result_idx = 0; result_idx < SLAVE_ROW_PER_PE1; result_idx++) {
+//             #pragma HLS pipeline II=1
+//             D_TYPE result = 0;
+//             dot_product:
+//             // NOTE: manually unroll 2 here
+//             for (int d = 0; d < SLAVE_INPUT_SIZE / INTS_PER_W / 2; d++) {
+//                 #pragma HLS pipeline II=1
+//                 W_TYPE reg_f_0 = s_feature_PE_0.read();
+//                 W_TYPE reg_f_1 = s_feature_PE_1.read();
+//                 W_TYPE reg_w_0 = weights_transpose_local[
+//                     result_idx * SLAVE_INPUT_SIZE / INTS_PER_W / 2 + 2 * d];
+//                 W_TYPE reg_w_1 = weights_transpose_local[
+//                     result_idx * SLAVE_INPUT_SIZE / INTS_PER_W / 2 + 2 * d + 1];
+
+//                 D_TYPE first_f_0 = reg_f_0.range(31, 0);
+//                 D_TYPE second_f_0 = reg_f_0.range(63, 32);
+//                 D_TYPE third_f_0 = reg_f_0.range(95, 64);
+//                 D_TYPE fourth_f_0 = reg_f_0.range(127, 96);
+
+//                 D_TYPE first_w_0= reg_w_0.range(31, 0);
+//                 D_TYPE second_w_0 = reg_w_0.range(63, 32);
+//                 D_TYPE third_w_0 = reg_w_0.range(95, 64);
+//                 D_TYPE fourth_w_0 = reg_w_0.range(127, 96);
+
+//                 D_TYPE first_f_1 = reg_f_1.range(31, 0);
+//                 D_TYPE second_f_1 = reg_f_1.range(63, 32);
+//                 D_TYPE third_f_1 = reg_f_1.range(95, 64);
+//                 D_TYPE fourth_f_1 = reg_f_1.range(127, 96);
+
+//                 D_TYPE first_w_1= reg_w_1.range(31, 0);
+//                 D_TYPE second_w_1 = reg_w_1.range(63, 32);
+//                 D_TYPE third_w_1 = reg_w_1.range(95, 64);
+//                 D_TYPE fourth_w_1 = reg_w_1.range(127, 96);
+
+                
+//                 result += 
+//                     first_f_0 * first_w_0 + second_f_0 * second_w_0 + 
+//                     third_f_0 * third_w_0 + fourth_f_0 * fourth_w_0 + 
+//                     first_f_1 * first_w_1 + second_f_1 * second_w_1 + 
+//                     third_f_1 * third_w_1 + fourth_f_1 * fourth_w_1;
+//             }
+//             s_result_PE.write(result);
+//         }
+//     }
+// } 
+
+
+template<const int FEATURE_SIZE, const int ROW_PER_PE>
+void matmul_PE_UNROLL8(
     STREAM<W_TYPE>& s_feature_PE_0,
     STREAM<W_TYPE>& s_feature_PE_1,
     STREAM<D_TYPE>& s_result_PE) {
 #pragma HLS inline off
 
-    W_TYPE weights_transpose_local[SLAVE_ROW_PER_PE1 * SLAVE_INPUT_SIZE / INTS_PER_W];
-#pragma HLS resource variable=weights_transpose_local core=RAM_2P_BRAM
+    W_TYPE weights_transpose_local[ROW_PER_PE * FEATURE_SIZE / INTS_PER_W];
+#pragma HLS BIND_STORAGE variable=weights_transpose_local type=RAM_2P impl=BRAM
 
-    init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(weights_transpose_local);
+    D_TYPE result_ram[ROW_PER_PE];
+
+    init_weights<FEATURE_SIZE, ROW_PER_PE>(weights_transpose_local);
 
     item_loop:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
 
         row_loop:
-        for (int result_idx = 0; result_idx < SLAVE_ROW_PER_PE1; result_idx++) {
-            
+        for (int result_idx = 0; result_idx < ROW_PER_PE; result_idx++) {
             D_TYPE result = 0;
             dot_product:
             // NOTE: manually unroll 2 here
-            for (int d = 0; d < SLAVE_INPUT_SIZE / INTS_PER_W / 2; d++) {
+            for (int d = 0; d < FEATURE_SIZE / INTS_PER_W / 2; d++) {
                 #pragma HLS pipeline II=1
                 W_TYPE reg_f_0 = s_feature_PE_0.read();
                 W_TYPE reg_f_1 = s_feature_PE_1.read();
-                W_TYPE reg_w_0 = weights_transpose_local[
-                    result_idx * SLAVE_INPUT_SIZE / INTS_PER_W / 2 + 2 * d];
-                W_TYPE reg_w_1 = weights_transpose_local[
-                    result_idx * SLAVE_INPUT_SIZE / INTS_PER_W / 2 + 2 * d + 1];
+                W_TYPE reg_w_0 = weights_transpose_local[result_idx * FEATURE_SIZE / INTS_PER_W / 2 + 2 * d];
+                W_TYPE reg_w_1 = weights_transpose_local[result_idx * FEATURE_SIZE / INTS_PER_W / 2 + 2 * d + 1];
 
                 D_TYPE first_f_0 = reg_f_0.range(31, 0);
                 D_TYPE second_f_0 = reg_f_0.range(63, 32);
@@ -5704,128 +5837,121 @@ void matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(
                     third_f_0 * third_w_0 + fourth_f_0 * fourth_w_0 + 
                     first_f_1 * first_w_1 + second_f_1 * second_w_1 + 
                     third_f_1 * third_w_1 + fourth_f_1 * fourth_w_1;
+
+                result_ram[result_idx] = result;
             }
-            s_result_PE.write(result);
         }
-    }
-} 
 
-template<>
-void matmul_PE_UNROLL8<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(
-    STREAM<W_TYPE>& s_feature_PE_0,
-    STREAM<W_TYPE>& s_feature_PE_1,
-    STREAM<D_TYPE>& s_result_PE) {
-#pragma HLS inline off
-
-    W_TYPE weights_transpose_local[SLAVE_ROW_PER_PE1 * SLAVE_INPUT_SIZE / INTS_PER_W];
-#pragma HLS resource variable=weights_transpose_local core=RAM_2P_URAM
-
-    init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(weights_transpose_local);
-
-    item_loop:
-    for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
-
-        row_loop:
-        for (int result_idx = 0; result_idx < SLAVE_ROW_PER_PE1; result_idx++) {
-            
-            D_TYPE result = 0;
-            dot_product:
-            // NOTE: manually unroll 2 here
-            for (int d = 0; d < SLAVE_INPUT_SIZE / INTS_PER_W / 2; d++) {
-                #pragma HLS pipeline II=1
-                W_TYPE reg_f_0 = s_feature_PE_0.read();
-                W_TYPE reg_f_1 = s_feature_PE_1.read();
-                W_TYPE reg_w_0 = weights_transpose_local[
-                    result_idx * SLAVE_INPUT_SIZE / INTS_PER_W / 2 + 2 * d];
-                W_TYPE reg_w_1 = weights_transpose_local[
-                    result_idx * SLAVE_INPUT_SIZE / INTS_PER_W / 2 + 2 * d + 1];
-
-                D_TYPE first_f_0 = reg_f_0.range(31, 0);
-                D_TYPE second_f_0 = reg_f_0.range(63, 32);
-                D_TYPE third_f_0 = reg_f_0.range(95, 64);
-                D_TYPE fourth_f_0 = reg_f_0.range(127, 96);
-
-                D_TYPE first_w_0= reg_w_0.range(31, 0);
-                D_TYPE second_w_0 = reg_w_0.range(63, 32);
-                D_TYPE third_w_0 = reg_w_0.range(95, 64);
-                D_TYPE fourth_w_0 = reg_w_0.range(127, 96);
-
-                D_TYPE first_f_1 = reg_f_1.range(31, 0);
-                D_TYPE second_f_1 = reg_f_1.range(63, 32);
-                D_TYPE third_f_1 = reg_f_1.range(95, 64);
-                D_TYPE fourth_f_1 = reg_f_1.range(127, 96);
-
-                D_TYPE first_w_1= reg_w_1.range(31, 0);
-                D_TYPE second_w_1 = reg_w_1.range(63, 32);
-                D_TYPE third_w_1 = reg_w_1.range(95, 64);
-                D_TYPE fourth_w_1 = reg_w_1.range(127, 96);
-
-                
-                result += 
-                    first_f_0 * first_w_0 + second_f_0 * second_w_0 + 
-                    third_f_0 * third_w_0 + fourth_f_0 * fourth_w_0 + 
-                    first_f_1 * first_w_1 + second_f_1 * second_w_1 + 
-                    third_f_1 * third_w_1 + fourth_f_1 * fourth_w_1;
-            }
-            s_result_PE.write(result);
-        }
-    }
-} 
-
-template<>
-void init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(W_TYPE* weights_transpose_local) {
-
-    D_TYPE row_template_even[SLAVE_INPUT_SIZE] = 
-      { 0,  0,  0,  0,  0,  0,  0, -1,  0,  1,  0,  0, -1,  0,  0,  0, 
-        1,  0,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-       -1,  0,  0,  0,  0,  0,  0,  0, -1,  0, -1,  0,  0, -1,  0,  0, 
-        0,  0,  0,  0,  0,  0,  0, -1, -1,  0,  0,  0,  0, -1,  0,  0, 
-        0,  0,  1,  0,  0,  0,  0,  0,  0,  0, -1,  1,  0,  0,  0,  0, 
-        0,  0,  0,  0,  0,  0, -1,  0,  0,  0,  1,  0, -1, -1,  0, -1, 
-       -1,  1,  0,  0,  0,  0, -1,  0,  0, -1,  0,  1,  0,  0, -1,  1, 
-        0,  0,  1,  0,  0,  0,  0,  0, -1,  0, -1,  0,  0,  1, -1,  0, 
-        0,  0,  0,  0,  1,  0,  1, -1,  0,  0,  0,  0,  0,  0,  0,  0, 
-        0,  0,  0,  0,  0, -1,  0,  1,  0,  0,  1, -1,  0,  0,  1,  1, 
-        0,  0,  0,  0,  0,  1,  0,  1,  1,  1,  0,  0,  0,  0,  0,  0, 
-        1,  0,  0,  0,  0,  0,  0, -1,  0,  0,  0,  0,  0,  0,  1,  0, 
-        0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1, -1,  1,  0,  0, -1, 
-       -1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1,  0,  0,  0, 
-        0,  0,  0,  0,  1,  0,  0,  0,  0,  0, -1,  1,  0,  0,  0,  0, 
-       -1, -1,  0,  0, -1,  0,  0,  0,  0,  0,  0,  0,  1, -1,  0,  0,
-        0,  0,  0,  0,  0,  0,  0, -1,  0,  1,  0,  0, -1,  0,  0,  0, 
-        1,  0,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-       -1,  0,  0,  0,  0,  0,  0,  0, -1,  0, -1,  0,  0, -1,  0,  0, 
-        0,  0,  0,  0,  0,  0,  0, -1, -1,  0,  0,  0,  0, -1,  0,  0, 
-        0,  0,  1,  0,  0,  0,  0,  0,  0,  0, -1,  1,  0,  0,  0,  0, 
-        0,  0,  0,  0,  0,  0, -1,  0,  0,  0,  1,  0, -1, -1,  0, -1, 
-       -1,  1,  0,  0,  0,  0, -1,  0,  0, -1,  0,  1,  0,  0, -1,  1, 
-        0,  0,  1,  0,  0,  0,  0,  0, -1,  0, -1,  0,  0,  1, -1,  0, 
-        0,  0,  0,  0,  1,  0,  1, -1,  0,  0,  0,  0,  0,  0,  0,  0, 
-        0,  0,  0,  0,  0, -1,  0,  1,  0,  0,  1, -1,  0,  0,  1,  1, 
-        0,  0,  0,  0,  0,  1,  0,  1,  1,  1,  0,  0,  0,  0,  0,  0, 
-        1,  0,  0,  0,  0,  0,  0, -1,  0,  0,  0,  0,  0,  0,  1,  0, 
-        0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1, -1,  1,  0,  0, -1, 
-       -1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1,  0,  0,  0
-        };
-
-    // load weights, convert to wide type
-    for (int i = 0; i < SLAVE_INPUT_SIZE / INTS_PER_W; i++) {
+        result_loop:
+        for (int result_idx = 0; result_idx < ROW_PER_PE; result_idx++) {
         #pragma HLS pipeline II=1
-        W_TYPE reg_even;
-        reg_even.range(31, 0) = row_template_even[INTS_PER_W * i];
-        reg_even.range(63, 32) = row_template_even[INTS_PER_W * i + 1];
-        reg_even.range(95, 64) = row_template_even[INTS_PER_W * i + 2];
-        reg_even.range(127, 96) = row_template_even[INTS_PER_W * i + 3];
-
-        weights_transpose_local[i] = reg_even;
+            s_result_PE.write(result_ram[result_idx]);
+        }
     }
+} 
 
-}
+// template<>
+// void init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_BRAM>(W_TYPE* weights_transpose_local) {
 
-template<>
-void init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(W_TYPE* weights_transpose_local) {
+//     D_TYPE row_template_even[SLAVE_INPUT_SIZE] = 
+//       { 0,  0,  0,  0,  0,  0,  0, -1,  0,  1,  0,  0, -1,  0,  0,  0, 
+//         1,  0,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
+//        -1,  0,  0,  0,  0,  0,  0,  0, -1,  0, -1,  0,  0, -1,  0,  0, 
+//         0,  0,  0,  0,  0,  0,  0, -1, -1,  0,  0,  0,  0, -1,  0,  0, 
+//         0,  0,  1,  0,  0,  0,  0,  0,  0,  0, -1,  1,  0,  0,  0,  0, 
+//         0,  0,  0,  0,  0,  0, -1,  0,  0,  0,  1,  0, -1, -1,  0, -1, 
+//        -1,  1,  0,  0,  0,  0, -1,  0,  0, -1,  0,  1,  0,  0, -1,  1, 
+//         0,  0,  1,  0,  0,  0,  0,  0, -1,  0, -1,  0,  0,  1, -1,  0, 
+//         0,  0,  0,  0,  1,  0,  1, -1,  0,  0,  0,  0,  0,  0,  0,  0, 
+//         0,  0,  0,  0,  0, -1,  0,  1,  0,  0,  1, -1,  0,  0,  1,  1, 
+//         0,  0,  0,  0,  0,  1,  0,  1,  1,  1,  0,  0,  0,  0,  0,  0, 
+//         1,  0,  0,  0,  0,  0,  0, -1,  0,  0,  0,  0,  0,  0,  1,  0, 
+//         0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1, -1,  1,  0,  0, -1, 
+//        -1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1,  0,  0,  0, 
+//         0,  0,  0,  0,  1,  0,  0,  0,  0,  0, -1,  1,  0,  0,  0,  0, 
+//        -1, -1,  0,  0, -1,  0,  0,  0,  0,  0,  0,  0,  1, -1,  0,  0,
+//         0,  0,  0,  0,  0,  0,  0, -1,  0,  1,  0,  0, -1,  0,  0,  0, 
+//         1,  0,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
+//        -1,  0,  0,  0,  0,  0,  0,  0, -1,  0, -1,  0,  0, -1,  0,  0, 
+//         0,  0,  0,  0,  0,  0,  0, -1, -1,  0,  0,  0,  0, -1,  0,  0, 
+//         0,  0,  1,  0,  0,  0,  0,  0,  0,  0, -1,  1,  0,  0,  0,  0, 
+//         0,  0,  0,  0,  0,  0, -1,  0,  0,  0,  1,  0, -1, -1,  0, -1, 
+//        -1,  1,  0,  0,  0,  0, -1,  0,  0, -1,  0,  1,  0,  0, -1,  1, 
+//         0,  0,  1,  0,  0,  0,  0,  0, -1,  0, -1,  0,  0,  1, -1,  0, 
+//         0,  0,  0,  0,  1,  0,  1, -1,  0,  0,  0,  0,  0,  0,  0,  0, 
+//         0,  0,  0,  0,  0, -1,  0,  1,  0,  0,  1, -1,  0,  0,  1,  1, 
+//         0,  0,  0,  0,  0,  1,  0,  1,  1,  1,  0,  0,  0,  0,  0,  0, 
+//         1,  0,  0,  0,  0,  0,  0, -1,  0,  0,  0,  0,  0,  0,  1,  0, 
+//         0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1, -1,  1,  0,  0, -1, 
+//        -1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1,  0,  0,  0
+//         };
 
-    D_TYPE row_template_odd[SLAVE_INPUT_SIZE] = 
+//     // load weights, convert to wide type
+//     for (int i = 0; i < SLAVE_INPUT_SIZE / INTS_PER_W; i++) {
+//         #pragma HLS pipeline II=1
+//         W_TYPE reg_even;
+//         reg_even.range(31, 0) = row_template_even[INTS_PER_W * i];
+//         reg_even.range(63, 32) = row_template_even[INTS_PER_W * i + 1];
+//         reg_even.range(95, 64) = row_template_even[INTS_PER_W * i + 2];
+//         reg_even.range(127, 96) = row_template_even[INTS_PER_W * i + 3];
+
+//         weights_transpose_local[i] = reg_even;
+//     }
+
+// }
+
+// template<>
+// void init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(W_TYPE* weights_transpose_local) {
+
+//     D_TYPE row_template_odd[SLAVE_INPUT_SIZE] = 
+//       { 1,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1,  0, 
+//         1,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
+//         0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0, -1, -1,  0, 
+//         0,  0,  0,  0,  0,  0,  0, -1,  0,  0,  0,  1,  0,  0,  0,  0, 
+//         0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
+//         0,  0,  0,  0,  0,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0, 
+//         0,  0,  1,  0,  0,  0,  0,  1,  0, -1,  0,  0,  1,  0, -1,  0, 
+//        -1,  0,  0,  0,  1,  0,  0,  0,  0,  0, -1,  0,  0,  0,  0,  0, 
+//         0,  0,  0,  0, -1,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
+//         0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0,  0,  0, -1,  0, 
+//         0,  0,  0, -1,  0, -1,  1,  1,  0,  0,  0, -1,  0,  0, -1,  0, 
+//         0,  0,  0,  0,  0,  0,  0,  0,  0, -1,  0,  0,  0,  1,  0,  0, 
+//         0,  0,  0,  0,  0, -1, -1,  0,  1,  0,  0,  0,  0,  0,  0,  0, 
+//         0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0,  0, 
+//         1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  0,  0, 
+//         0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1, -1,  0,  0,  1,
+//         1,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1,  0, 
+//         1,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
+//         0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0, -1, -1,  0, 
+//         0,  0,  0,  0,  0,  0,  0, -1,  0,  0,  0,  1,  0,  0,  0,  0, 
+//         0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
+//         0,  0,  0,  0,  0,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0, 
+//         0,  0,  1,  0,  0,  0,  0,  1,  0, -1,  0,  0,  1,  0, -1,  0, 
+//        -1,  0,  0,  0,  1,  0,  0,  0,  0,  0, -1,  0,  0,  0,  0,  0, 
+//         0,  0,  0,  0, -1,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
+//         0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0,  0,  0, -1,  0, 
+//         0,  0,  0, -1,  0, -1,  1,  1,  0,  0,  0, -1,  0,  0, -1,  0, 
+//         0,  0,  0,  0,  0,  0,  0,  0,  0, -1,  0,  0,  0,  1,  0,  0, 
+//         0,  0,  0,  0,  0, -1, -1,  0,  1,  0,  0,  0,  0,  0,  0,  0, 
+//         0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0,  0
+//         };
+
+//     // load weights, convert to wide type
+//     for (int i = 0; i < SLAVE_INPUT_SIZE / INTS_PER_W; i++) {
+//         #pragma HLS pipeline II=1
+//         W_TYPE reg_odd;
+//         reg_odd.range(31, 0) = row_template_odd[INTS_PER_W * i];
+//         reg_odd.range(63, 32) = row_template_odd[INTS_PER_W * i + 1];
+//         reg_odd.range(95, 64) = row_template_odd[INTS_PER_W * i + 2];
+//         reg_odd.range(127, 96) = row_template_odd[INTS_PER_W * i + 3];
+//         weights_transpose_local[i] = reg_odd;
+//     }
+// }
+
+template<const int FEATURE_SIZE, const int ROW_PER_PE>
+void init_weights(W_TYPE* weights_transpose_local) {
+
+    D_TYPE row_template_odd[FEATURE_SIZE] = 
       { 1,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1,  0, 
         1,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
         0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0, -1, -1,  0, 
@@ -5859,7 +5985,7 @@ void init_weights<SLAVE_INPUT_SIZE, SLAVE_ROW_PER_PE1, WEIGHT_URAM>(W_TYPE* weig
         };
 
     // load weights, convert to wide type
-    for (int i = 0; i < SLAVE_INPUT_SIZE / INTS_PER_W; i++) {
+    for (int i = 0; i < FEATURE_SIZE / INTS_PER_W; i++) {
         #pragma HLS pipeline II=1
         W_TYPE reg_odd;
         reg_odd.range(31, 0) = row_template_odd[INTS_PER_W * i];

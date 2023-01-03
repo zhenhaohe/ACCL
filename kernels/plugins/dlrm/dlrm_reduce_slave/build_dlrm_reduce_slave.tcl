@@ -20,8 +20,13 @@ set device [lindex $argv 1]
 
 set do_syn 0
 set do_export 0
+set do_sim 0
+set do_cosim 0
 
 switch $command {
+    "sim" {
+        set do_sim 1
+    }
     "syn" {
         set do_syn 1
     }
@@ -33,6 +38,10 @@ switch $command {
         set do_syn 1
         set do_export 1
     }
+    "cosim" {
+        set do_syn 1
+        set do_cosim 1
+    }
     default {
         puts "Unrecognized command"
         exit
@@ -43,6 +52,7 @@ switch $command {
 open_project build_dlrm_reduce_slave
 
 add_files dlrm_reduce_slave.cpp -cflags "-std=c++14 -I../../../../driver/hls/ -I../ -DACCL_SYNTHESIS"
+add_files -tb dlrm_reduce_slave_testbench.cpp -cflags "-std=c++14 -I../../../../driver/hls/ -I../ -DACCL_SYNTHESIS"
 
 set_top dlrm_reduce_slave
 
@@ -57,6 +67,14 @@ if {$do_syn} {
 
 if {$do_export} {
     export_design
+}
+
+if {$do_sim} {
+    csim_design -clean
+}
+
+if ${do_cosim} {
+    cosim_design
 }
 
 exit

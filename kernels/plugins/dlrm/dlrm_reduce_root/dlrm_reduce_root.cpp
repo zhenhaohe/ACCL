@@ -467,6 +467,18 @@ void dlrm_reduce_root(
     //     std::cout << "dlrm_reduce_root NOP finish" << "\n";
     // #endif
 
+    // // Barrier
+    // accl_hls::barrier_non_root(
+    //     local_rank,
+    //     global_comm_size,
+    //     global_comm_adr, 
+    //     dpcfg_adr,
+    //     cmd_to_cclo,
+    //     sts_from_cclo,
+    //     data_to_cclo,
+    //     data_from_cclo
+    // );
+
 }
 
 

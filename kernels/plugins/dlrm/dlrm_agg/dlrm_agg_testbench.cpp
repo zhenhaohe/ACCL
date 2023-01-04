@@ -33,17 +33,17 @@ int main()
     }
     
     dlrm_agg(
-    HBM_result,
-    // //parameters pertaining to CCLO config
-    local_rank,
-    comm_size,
-    comm_adr, 
-    dpcfg_adr,
-    // //streams to and from CCLO
-    cmd_to_cclo,
-    sts_from_cclo,
-    data_to_cclo,
-    data_from_cclo
+        HBM_result,
+        // //parameters pertaining to CCLO config
+        local_rank,
+        comm_size,
+        comm_adr, 
+        dpcfg_adr,
+        // //streams to and from CCLO
+        cmd_to_cclo,
+        sts_from_cclo,
+        data_to_cclo,
+        data_from_cclo
     );
 
     for (int i = 0; i< 15; i++)

@@ -71,26 +71,26 @@ int main()
     sts_from_cclo.write(sts_word); // pop in send status
     
     dlrm_embedding(
-    // dlrm parameters
-    HBM_embedding0,
-    HBM_embedding1,
-    HBM_embedding2,
-    HBM_embedding3,
-    HBM_embedding4,
-    HBM_embedding5,
-    HBM_embedding6,
-    HBM_embedding7,
-    destination,
-    //parameters pertaining to CCLO config
-    local_rank,
-    comm_size,
-    comm_adr, 
-    dpcfg_adr,
-    //streams to and from CCLO
-    cmd_to_cclo,
-    sts_from_cclo,
-    data_to_cclo,
-    data_from_cclo
+      // dlrm parameters
+      HBM_embedding0,
+      HBM_embedding1,
+      HBM_embedding2,
+      HBM_embedding3,
+      HBM_embedding4,
+      HBM_embedding5,
+      HBM_embedding6,
+      HBM_embedding7,
+      destination,
+      //parameters pertaining to CCLO config
+      local_rank,
+      comm_size,
+      comm_adr, 
+      dpcfg_adr,
+      //streams to and from CCLO
+      cmd_to_cclo,
+      sts_from_cclo,
+      data_to_cclo,
+      data_from_cclo
     );
 
     for (int i = 0; i< 15; i++)

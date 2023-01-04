@@ -567,6 +567,18 @@ void dlrm_embedding(
     // #ifndef ACCL_SYNTHESIS
     //     std::cout << "dlrm_embedding NOP finish" << "\n";
     // #endif
+
+    // // Barrier
+    // accl_hls::barrier_non_root(
+    //     local_rank,
+    //     comm_size,
+    //     comm_adr, 
+    //     dpcfg_adr,
+    //     cmd_to_cclo,
+    //     sts_from_cclo,
+    //     data_to_cclo,
+    //     data_from_cclo
+    // );
     
 }
 

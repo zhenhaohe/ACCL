@@ -378,7 +378,6 @@ void dlrm_reduce_slave(
 #pragma HLS INTERFACE s_axilite port=return
 
     // Barrier
-    // Single packet transverse as a ring
     accl_hls::barrier_non_root(
         local_rank,
         global_comm_size,
@@ -424,6 +423,18 @@ void dlrm_reduce_slave(
     // #ifndef ACCL_SYNTHESIS
     //     std::cout << "dlrm_reduce_slave NOP finish" << "\n";
     // #endif
+
+    // // Barrier
+    // accl_hls::barrier_non_root(
+    //     local_rank,
+    //     global_comm_size,
+    //     global_comm_adr, 
+    //     dpcfg_adr,
+    //     cmd_to_cclo,
+    //     sts_from_cclo,
+    //     data_to_cclo,
+    //     data_from_cclo
+    // );
 
 }
 

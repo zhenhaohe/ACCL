@@ -66,7 +66,7 @@ using namespace ACCL;
 #define HOUSEKEEP_SET_MAX_SEGMENT_SIZE 6
 #define HOUSEKEEP_CLOSE_CON            7
 
-#define CONFIG_HW_BENCH_RECORD 7
+#define CONFIG_HW_BENCH_RECORD 8
 
 int rank, size;
 unsigned failed_tests;
@@ -829,7 +829,7 @@ void start_test(options_t options) {
     MPI_Barrier(MPI_COMM_WORLD);
     debug("Starting session to communicator ranks");
     accl->open_con();
-    debug(accl->dump_communicator());
+    // debug(accl->dump_communicator());
   }
 
   accl->set_timeout(1e6);
@@ -860,7 +860,7 @@ void start_test(options_t options) {
     REDUCE_COMM = accl->create_communicator(reduce_group, own_rank);
   }
   MPI_Barrier(MPI_COMM_WORLD);
-  debug(accl->dump_communicator());
+  // debug(accl->dump_communicator());
 
   MPI_Barrier(MPI_COMM_WORLD);
 	// create buffers
@@ -1071,10 +1071,10 @@ void start_test(options_t options) {
     
     if (own_role == DLRM_AGG_ROLE)
     {
-      hw_bench_record = CONFIG_HW_BENCH_RECORD+(size-1)+1+1;
+      hw_bench_record = CONFIG_HW_BENCH_RECORD+(size-1)+1;
     } else 
     {
-      hw_bench_record = CONFIG_HW_BENCH_RECORD+1+1+1;
+      hw_bench_record = CONFIG_HW_BENCH_RECORD+1+1;
     }
      
 
@@ -1093,13 +1093,30 @@ void start_test(options_t options) {
     unsigned int cmd_mem_offset = 0;
     buf_hw_bench_sts.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
     unsigned int sts_mem_offset = 0;
+    std::vector<timestamp_t> timestamp_vec;
     for (unsigned int i = 0; i < hw_bench_record; i++)
     {
       timestamp_t timestamp = readTimeStamp(host_ptr_hw_bench_cmd, host_ptr_hw_bench_sts, cmd_mem_offset, sts_mem_offset);
+      timestamp_vec.push_back(timestamp);
       printTimeStamp(timestamp, options);
     }
+
+    if (own_role == DLRM_AGG_ROLE)
+    {
+      double freq = 115.0;
+      uint64_t exp_start_cycle = timestamp_vec[CONFIG_HW_BENCH_RECORD].cmdTimestamp;
+      uint64_t exp_end_cycle = timestamp_vec[hw_bench_record-1].cmdTimestamp;
+      double exp_lat = ((double)exp_end_cycle - (double)exp_start_cycle) / freq;
+      std::cout<<"exp_start_cycle: "<<exp_start_cycle<<" exp_end_cycle: "<<exp_end_cycle<<" exp_lat[us]:"<<exp_lat<<std::endl;
+      std::ofstream logfile;
+      logfile.open ("dlrm_exp.csv",std::ios::out | std::ios::app);
+      logfile<<"num_nodes,element_count,BATCH_NUM,BATCH_SIZE,exp_start_cycle,exp_end_cycle,exp_lat\n";
+      logfile<<size<<","<<options.count<<","<<BATCH_NUM<<","<<BATCH_SIZE<<","<<exp_start_cycle<<","<<exp_end_cycle<<","<<exp_lat<<"\n";
+    }
+
   }
 
+  MPI_Barrier(MPI_COMM_WORLD);
   // debug(accl->dump_communicator());
 
   if (failed_tests > 1) {

@@ -9806,14 +9806,19 @@ void dataTransform(STREAM<D_TYPE> & s_result, STREAM<ap_uint<512> > & s_data_out
     }
 }
 
-void write_to_mem(STREAM<D_TYPE> & s_result, int* dst) {
+void write_to_mem(STREAM<D_TYPE> & s_result, int* dst, STREAM<int> &mem_wr_done) {
+
+    int mem_wr_cnt = 0;
 
     write_to_mem:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
         #pragma HLS pipeline II=1
         D_TYPE final_result = s_result.read();
         dst[item] = final_result;
+        mem_wr_cnt = mem_wr_cnt + 1;
     }
+
+    mem_wr_done.write(mem_wr_cnt);
 }
 
 void consumeData_zero(

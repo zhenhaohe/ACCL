@@ -24,7 +24,8 @@ using namespace dlrm_agg_ns;
 void dlrm_agg_compute(
     int *dst,
     STREAM<stream_word> &data_to_cclo,
-    STREAM<stream_word> &data_from_cclo
+    STREAM<stream_word> &data_from_cclo,
+    STREAM<int> &mem_wr_done
 )
 {
     STREAM<ap_uint<512> > s_result2_partial;
@@ -619,11 +620,31 @@ static STREAM<ap_uint<512> >    s_data_out;
     output_layer(s_result3_all, s_result_out);
 
     // dataTransform(s_result_out, s_data_out);
-    write_to_mem(s_result_out, dst);
+    write_to_mem(s_result_out, dst, mem_wr_done);
 
 
     #ifndef ACCL_SYNTHESIS
         std::cout << "dlrm_agg: finish" << "\n";
+    #endif
+}
+
+void check_done(
+    STREAM<int> &mem_wr_done,
+    ap_uint<32> comm_adr, 
+    ap_uint<32> dpcfg_adr,
+    STREAM<command_word> &cmd_to_cclo,
+    STREAM<command_word> &sts_from_cclo
+)
+{
+#pragma HLS INLINE off
+
+    int mem_wr_cnt = mem_wr_done.read();
+    //send out a nop for measurement purposes
+    accl_hls::start(ACCL_NOP, mem_wr_cnt, comm_adr, 0, 0, 0, dpcfg_adr, 0, 0, 0, 0, 0, cmd_to_cclo);
+    accl_hls::finalize(sts_from_cclo);
+
+    #ifndef ACCL_SYNTHESIS
+        std::cout << "dlrm_agg NOP finish" << "\n";
     #endif
 }
 
@@ -651,6 +672,9 @@ void dlrm_agg(
 #pragma HLS INTERFACE axis port=data_from_cclo
 #pragma HLS INTERFACE s_axilite port=return
 
+    STREAM<int> mem_wr_done;
+#pragma HLS stream variable=mem_wr_done depth=4
+
     // Barrier
     accl_hls::barrier_root(
         local_rank,
@@ -673,16 +697,30 @@ void dlrm_agg(
     dlrm_agg_compute(
         dst,
         data_to_cclo,
-        data_from_cclo
+        data_from_cclo,
+        mem_wr_done
     );
 
-    //send out a nop for measurement purposes
-    accl_hls::start(ACCL_NOP, 0, comm_adr, 0, 0, 0, dpcfg_adr, 0, 0, 0, 0, 0, cmd_to_cclo);
-    accl_hls::finalize(sts_from_cclo);
+    check_done(
+        mem_wr_done,
+        comm_adr, 
+        dpcfg_adr,
+        cmd_to_cclo,
+        sts_from_cclo
+    );
 
-    #ifndef ACCL_SYNTHESIS
-        std::cout << "dlrm_agg NOP finish" << "\n";
-    #endif
+
+    // // Barrier
+    // accl_hls::barrier_root(
+    //     local_rank,
+    //     comm_size,
+    //     comm_adr, 
+    //     dpcfg_adr,
+    //     cmd_to_cclo,
+    //     sts_from_cclo,
+    //     data_to_cclo,
+    //     data_from_cclo
+    // );
 
 }
 

@@ -629,7 +629,7 @@ typedef ap_int<128> W_TYPE;  // weights / feature width
 #define ROOT_ROW_PER_PE2 (ROOT_HIDDEN_SIZE2 / ROOT_PE_NUM2) // 512 / 512 = 1
 
 // DLRM_REDUCE_SLAVE
-#define SLAVE_INPUT_SIZE 960
+#define SLAVE_INPUT_SIZE 800
 #define SLAVE_HIDDEN_SIZE1 1024
 #define SLAVE_PE_NUM1 512
 #define SLAVE_ROW_PER_PE1 (SLAVE_HIDDEN_SIZE1 / SLAVE_PE_NUM1) // 1024 / 512 = 2
@@ -657,6 +657,6 @@ typedef ap_int<128> W_TYPE;  // weights / feature width
 #define FIFO_BATCH_SIZE 8   // cache 8 batches at max in FIFO
 //#define BATCH_SIZE 32
 #define BATCH_SIZE 1
-//#define BATCH_NUM 2
-#define BATCH_NUM 1
+#define BATCH_NUM 2
+// #define BATCH_NUM 1
 //#define BATCH_NUM 5000 // NOTE! load access idx to BRAM!

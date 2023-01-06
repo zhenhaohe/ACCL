@@ -57,7 +57,8 @@ using namespace dlrm_reduce_root_ns;
 
 
 void dlrm_reduce_root_compute(
-    int dlrm_count,
+    int dlrm_count_send,
+    int dlrm_count_recv,
     //streams to and from CCLO
     STREAM<stream_word> &data_to_cclo,
     STREAM<stream_word> &data_from_cclo
@@ -265,10 +266,10 @@ void dlrm_reduce_root_compute(
 #pragma HLS stream variable=s_result2_PE31 depth=2
 
     STREAM<ap_uint<512> > s_result2_partial_0;
-#pragma HLS stream variable=s_result2_partial_0 depth=128
+#pragma HLS stream variable=s_result2_partial_0 depth=512
 
     STREAM<ap_uint<512> > s_result2_node1;
-#pragma HLS stream variable=s_result2_node1 depth=256
+#pragma HLS stream variable=s_result2_node1 depth=512
 
 
 static STREAM<ap_uint<512> >    s_data_in;
@@ -287,8 +288,8 @@ static STREAM<ap_uint<512> >    s_data_out;
 
 #pragma HLS dataflow disable_start_propagation
 
-    int count_recv = dlrm_count;
-    int count_send = dlrm_count;
+    int count_recv = dlrm_count_recv;
+    int count_send = dlrm_count_send;
 
     // dlrm_reduce_root_cmd(count_recv, destination, root, function, global_comm_adr, reduce_comm_adr, dpcfg_adr, cmd_to_cclo);
 
@@ -298,13 +299,10 @@ static STREAM<ap_uint<512> >    s_data_out;
     //pull data from CCLO and write it to stream_buf
     data.pull_to_stream(s_data_in, count_recv);
 
-    // read in 192 words
+    // read in 128 words
     // creates 128 words for s_feature_in and s_feature_send_out
-    // creates 64 words padding 0
-    recvDataTransform(s_data_in, s_feature_in, s_feature_send_out, s_data_in_zero);
+    recvDataTransform(s_data_in, s_feature_in, s_feature_send_out);
 
-    // consume 64 words 
-    consumeData_zero(s_data_in_zero);
 
     store_features<ROOT_HIDDEN_SIZE1, ROOT_ROW_PER_PE2>(s_feature_in, s_feature_out);
 
@@ -378,18 +376,54 @@ static STREAM<ap_uint<512> >    s_data_out;
         s_result2_node1
     );
 
-    // 48 words
-    pad_zero(s_padded_zero);
 
-    // 16 words of s_result2_node1, 48 words padding, 128 words of s_feature_send_out
-    dataTransform(s_result2_node1, s_feature_send_out, s_padded_zero, s_data_out_buffer);
+    //16 words of s_result2_node1, 128 words of s_feature_send_out; total 144 words
+    dataTransform(s_result2_node1, s_feature_send_out, s_data_out);
 
-    stream_data_out(s_data_out_buffer, s_data_out);
     // read data from stream_buf and put to CCLO for reduction
     data.push_from_stream(s_data_out, count_send, 0);
 
 }
 
+void dlrm_reduce_root_compute_cmd(
+    int num_cmd,
+    int count,
+    unsigned int function,
+    unsigned int destination,
+    ap_uint<32> global_comm_adr, 
+    ap_uint<32> dpcfg_adr,
+    STREAM<command_word> &cmd_to_cclo
+)
+{
+#pragma HLS INLINE off
+
+    cmd_loop:
+    for (int i=0; i< num_cmd; i++)
+    {
+        //streaming reduce command to CCLO
+        accl_hls::start(ACCL_SEND, count, global_comm_adr, destination, function, 9, dpcfg_adr, 0, 3, 0, 0, 0, cmd_to_cclo);
+        #ifndef ACCL_SYNTHESIS
+            std::cout << "dlrm_reduce_root: stream_put_nb command to CCLO, count:"<< count << "\n";
+        #endif
+    }
+}
+
+void dlrm_reduce_root_compute_ack(
+    int num_cmd,
+    STREAM<command_word> &sts_from_cclo
+)
+{
+#pragma HLS INLINE off
+    ack_loop:
+    for (int i=0; i< num_cmd; i++)
+    {
+        // finalize the call
+        accl_hls::finalize(sts_from_cclo);
+        #ifndef ACCL_SYNTHESIS
+            std::cout << "dlrm_reduce_root: finish" << "\n";
+        #endif
+    }
+}
 
 void dlrm_reduce_root(
     unsigned int destination,
@@ -434,50 +468,46 @@ void dlrm_reduce_root(
         data_from_cclo
     );
 
-    // //send out a nop for measurement purposes
-    // accl_hls::start(ACCL_NOP, 0, global_comm_adr, 0, 0, 0, dpcfg_adr, 0, 0, 0, 0, 0, cmd_to_cclo);
-    // accl_hls::finalize(sts_from_cclo);
+
+    int dlrm_one_inference_count_send = (2 * 64 + 16) * 16;
+    int dlrm_one_inference_count_recv = 2 * 64 * 16;
+    int num_inference = BATCH_NUM * BATCH_SIZE;
+    int dlrm_count_send = num_inference * dlrm_one_inference_count_send;
+    int dlrm_count_recv = num_inference * dlrm_one_inference_count_recv;
+
+    // accl_hls::start(ACCL_SEND, dlrm_count, global_comm_adr, destination, function, 9, dpcfg_adr, 0, 3, 0, 0, 0, cmd_to_cclo);
     // #ifndef ACCL_SYNTHESIS
-    //     std::cout << "dlrm_reduce_root barrier finish" << "\n";
+    //     std::cout << "dlrm_reduce_root: stream_put_nb command to CCLO, count:"<< dlrm_count << "\n";
     // #endif
 
-    int dlrm_count = BATCH_NUM * BATCH_SIZE * 3 * 64 * 16;
-
-    accl_hls::start(ACCL_SEND, dlrm_count, global_comm_adr, destination, function, 9, dpcfg_adr, 0, 3, 0, 0, 0, cmd_to_cclo);
-    #ifndef ACCL_SYNTHESIS
-        std::cout << "dlrm_reduce_root: stream_put_nb command to CCLO, count:"<< dlrm_count << "\n";
-    #endif
+    dlrm_reduce_root_compute_cmd(
+        num_inference,
+        dlrm_one_inference_count_send,
+        function,
+        destination,
+        global_comm_adr, 
+        dpcfg_adr,
+        cmd_to_cclo
+    );
 
     dlrm_reduce_root_compute(
-        dlrm_count,
+        dlrm_count_send,
+        dlrm_count_recv,
         data_to_cclo,
         data_from_cclo
     );
 
-    accl_hls::finalize(sts_from_cclo);
-    #ifndef ACCL_SYNTHESIS
-        std::cout << "dlrm_reduce_root: finish stream push" << "\n";
-    #endif
-
-    // //send out a nop for measurement purposes
-    // accl_hls::start(ACCL_NOP, 0, global_comm_adr, 0, 0, 0, dpcfg_adr, 0, 0, 0, 0, 0, cmd_to_cclo);
     // accl_hls::finalize(sts_from_cclo);
-
     // #ifndef ACCL_SYNTHESIS
-    //     std::cout << "dlrm_reduce_root NOP finish" << "\n";
+    //     std::cout << "dlrm_reduce_root: finish stream push" << "\n";
     // #endif
 
-    // // Barrier
-    // accl_hls::barrier_non_root(
-    //     local_rank,
-    //     global_comm_size,
-    //     global_comm_adr, 
-    //     dpcfg_adr,
-    //     cmd_to_cclo,
-    //     sts_from_cclo,
-    //     data_to_cclo,
-    //     data_from_cclo
-    // );
+    dlrm_reduce_root_compute_ack(
+        num_inference,
+        sts_from_cclo
+    );
+
+
 
 }
 

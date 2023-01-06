@@ -450,11 +450,9 @@ static STREAM<ap_uint<512> > s_data_in;
 static STREAM<ap_uint<512> >    s_data_out;
 #pragma HLS STREAM variable=s_data_out depth=512
 
-
-
 #pragma HLS dataflow disable_start_propagation
 
-    int count_recv = BATCH_NUM * BATCH_SIZE * 3 * 64 * 16;
+    int count_recv = BATCH_NUM * BATCH_SIZE * (2 * 64 + 16) * 16;
     //set up interfaces
     // accl_hls::ACCLCommand accl(cmd_to_cclo, sts_from_cclo, comm_adr, dpcfg_adr, 0, 3);
     accl_hls::ACCLData data(data_to_cclo, data_from_cclo);
@@ -466,11 +464,10 @@ static STREAM<ap_uint<512> >    s_data_out;
         std::cout << "dlrm_agg: recv count:"<< count_recv << "\n";
     #endif
 
-    //s_result2_partial 16 words, s_data_in_zero 48 words, s_feature_in_layer_2 128 words
-    recvDataTransform(s_data_in, s_result2_partial, s_feature_in_layer_2, s_data_in_zero);
+    //s_result2_partial 16 words, s_feature_in_layer_2 128 words 
+    recvDataTransform(s_data_in, s_result2_partial, s_feature_in_layer_2);
 
-    // consume 48 words
-    consumeData_zero(s_data_in_zero);
+
 /////////////////////////////////////////////////////////////////////////////
     store_features<AGG_HIDDEN_SIZE1, AGG_ROW_PER_PE2>(s_feature_in_layer_2, s_feature_out_layer_2);
 
@@ -687,12 +684,6 @@ void dlrm_agg(
         data_from_cclo
     );
 
-    // //send out a nop for measurement purposes
-    // accl_hls::start(ACCL_NOP, 0, comm_adr, 0, 0, 0, dpcfg_adr, 0, 0, 0, 0, 0, cmd_to_cclo);
-    // accl_hls::finalize(sts_from_cclo);
-    // #ifndef ACCL_SYNTHESIS
-    //     std::cout << "dlrm_agg barrier finish" << "\n";
-    // #endif
 
     dlrm_agg_compute(
         dst,
@@ -709,18 +700,6 @@ void dlrm_agg(
         sts_from_cclo
     );
 
-
-    // // Barrier
-    // accl_hls::barrier_root(
-    //     local_rank,
-    //     comm_size,
-    //     comm_adr, 
-    //     dpcfg_adr,
-    //     cmd_to_cclo,
-    //     sts_from_cclo,
-    //     data_to_cclo,
-    //     data_from_cclo
-    // );
 
 }
 

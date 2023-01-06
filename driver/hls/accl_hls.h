@@ -962,11 +962,13 @@ inline void barrier_root(
     // root receives the packets and then send one packet to each non-root node
     unsigned int root = comm_size-1;
     
+    ap_uint<512> tmpword;
+
     collect_msg:
     for (unsigned int i = 0; i < root; i++)
     {
     #pragma HLS PIPELINE II=1
-        ap_uint<512> tmpword = data.pull().data;
+        tmpword = data.pull().data;
     }
     #ifndef ACCL_SYNTHESIS
         std::cout << "barrier root receive messages:" <<comm_size-1<< "\n";
@@ -984,7 +986,6 @@ inline void barrier_root(
     for (unsigned int i = 0; i < root; i++)
     {
         #pragma HLS PIPELINE II=1
-        ap_uint<512> tmpword = 1;
         data.push(tmpword, 0);
         #ifndef ACCL_SYNTHESIS
             std::cout << "barrier root stream put data:"<<i<< "\n";

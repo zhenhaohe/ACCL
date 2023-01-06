@@ -2026,7 +2026,7 @@ const int depth_s_embedding_buffer_wide_HBM28 = VECTOR_SIZE_HBM_BANK_28 * FIFO_B
 const int depth_s_embedding_buffer_wide_HBM29 = VECTOR_SIZE_HBM_BANK_29 * FIFO_BATCH_SIZE / 4;
 const int depth_s_embedding_buffer_wide_HBM30 = VECTOR_SIZE_HBM_BANK_30 * FIFO_BATCH_SIZE / 4;
 
-void recvDataTransform(STREAM<ap_uint<512> > & s_data_in, STREAM<ap_uint<512> > & s_result2_partial, STREAM<ap_uint<512> > & s_feature_in, STREAM<ap_uint<512> > & s_data_in_zero){
+void recvDataTransform(STREAM<ap_uint<512> > & s_data_in, STREAM<ap_uint<512> > & s_result2_partial, STREAM<ap_uint<512> > & s_feature_in){
 
     for_each_item:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
@@ -2036,17 +2036,10 @@ void recvDataTransform(STREAM<ap_uint<512> > & s_data_in, STREAM<ap_uint<512> > 
             s_result2_partial.write(s_data_in.read());
         }
 
-        for (int i = 0; i < 48; i++) {
-            #pragma HLS pipeline II=1
-            s_data_in_zero.write(s_data_in.read()); // padded packet
-        }
-
         for (int i = 0; i < 128; i++){
             #pragma HLS pipeline II=1
             s_feature_in.write(s_data_in.read());
         }
-
-        
 
     }
 }
@@ -2428,7 +2421,7 @@ void store_features(
 {
 
     ap_uint<512> features_local[FEATURE_SIZE / INTS_PER_W / 4];
-#pragma HLS BIND_STORAGE variable=features_local type=RAM_1P impl=URAM
+#pragma HLS BIND_STORAGE variable=features_local type=RAM_1P impl=BRAM
 
     for_each_item:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
@@ -9666,7 +9659,7 @@ void output_layer(
         
     W_TYPE weights_transpose_local[AGG_HIDDEN_SIZE3 / INTS_PER_W];    
     // W_TYPE feature_local[AGG_HIDDEN_SIZE3 / INTS_PER_W];
-#pragma HLS BIND_STORAGE variable=weights_transpose_local type=RAM_2P impl=URAM
+#pragma HLS BIND_STORAGE variable=weights_transpose_local type=RAM_2P impl=BRAM
 
     // load weights at the very beginning
     D_TYPE row_template_layer_out[AGG_HIDDEN_SIZE3] = 

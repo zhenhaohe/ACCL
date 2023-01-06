@@ -4,7 +4,7 @@
 
 namespace dlrm_reduce_root_ns {
 
-void recvDataTransform(STREAM<ap_uint<512> > & s_data_in, STREAM<ap_uint<512> > & s_feature_in, STREAM<ap_uint<512> > & s_feature_send_out, STREAM<ap_uint<512> > & s_data_in_zero);
+void recvDataTransform(STREAM<ap_uint<512> > & s_data_in, STREAM<ap_uint<512> > & s_feature_in, STREAM<ap_uint<512> > & s_feature_send_out);
 
 void load_access_idx(
     STREAM<int>& start_flag,
@@ -1977,7 +1977,7 @@ const int depth_s_embedding_buffer_wide_HBM28 = VECTOR_SIZE_HBM_BANK_28 * FIFO_B
 const int depth_s_embedding_buffer_wide_HBM29 = VECTOR_SIZE_HBM_BANK_29 * FIFO_BATCH_SIZE / 4;
 const int depth_s_embedding_buffer_wide_HBM30 = VECTOR_SIZE_HBM_BANK_30 * FIFO_BATCH_SIZE / 4;
 
-void recvDataTransform(STREAM<ap_uint<512> > & s_data_in, STREAM<ap_uint<512> > & s_feature_in, STREAM<ap_uint<512> > & s_feature_send_out, STREAM<ap_uint<512> > & s_data_in_zero){
+void recvDataTransform(STREAM<ap_uint<512> > & s_data_in, STREAM<ap_uint<512> > & s_feature_in, STREAM<ap_uint<512> > & s_feature_send_out){
 
     for_each_item:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
@@ -1987,11 +1987,6 @@ void recvDataTransform(STREAM<ap_uint<512> > & s_data_in, STREAM<ap_uint<512> > 
             ap_uint<512> data_word = s_data_in.read();
             s_feature_in.write(data_word);
             s_feature_send_out.write(data_word);
-        }
-
-        for (int i = 0; i < 64; i++) {
-            #pragma HLS pipeline II=1
-            s_data_in_zero.write(s_data_in.read()); // padded packet
         }
 
         #ifndef ACCL_SYNTHESIS
@@ -2377,7 +2372,7 @@ void store_features(
 {
 
     ap_uint<512> features_local[FEATURE_SIZE / INTS_PER_W / 4];
-#pragma HLS BIND_STORAGE variable=features_local type=RAM_1P impl=URAM
+#pragma HLS BIND_STORAGE variable=features_local type=RAM_1P impl=BRAM
 
     for_each_item:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
@@ -9298,7 +9293,7 @@ void gather_results_node1(
     }
 }
 
-void dataTransform(STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > & s_feature_send_out, STREAM<ap_uint<512> > & s_padded_zero, STREAM<ap_uint<512> > & s_data_out){
+void dataTransform(STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > & s_feature_send_out, STREAM<ap_uint<512> > & s_data_out){
 
     ValidData:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
@@ -9307,57 +9302,17 @@ void dataTransform(STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > 
             #pragma HLS pipeline II=1
             s_data_out.write(s_result_node.read()); 
             // #ifndef ACCL_SYNTHESIS
-            //     std::cout <<"reduce root dataTransform loop1: wr_count:"<<i<<std::endl;
-            // #endif
-        }
-
-        // for (int i = 0; i < 64; i++){
-        //     #pragma HLS pipeline II=1
-        //     ap_uint<512> tmp_data_0 = s_result_node_partial.read();
-        //     ap_uint<512> tmp_data_1 = s_result_node.read();
-        //     ap_uint<512> tmp_data_out;
-        //     for (int j = 0; j < 16; j++) {
-        //         #pragma HLS unroll
-        //         tmp_data_out(32*j+31, 32*j) = tmp_data_0(32*j+31, 32*j) + tmp_data_1(32*j+31, 32*j);
-        //     }
-        //     s_data_out.write(tmp_data_out);
-        // }
-
-        for (int i = 0; i < 48; i++) {
-            #pragma HLS pipeline II=1
-            s_data_out.write(s_padded_zero.read()); // padded packet
-            // #ifndef ACCL_SYNTHESIS
             //     std::cout <<"reduce root dataTransform loop2: wr_count:"<<i<<std::endl;
             // #endif
-        }
+        }  
 
         for (int i = 0; i < 128; i++) {
             #pragma HLS pipeline II=1
-            s_data_out.write(s_feature_send_out.read()); // padded packet
+            s_data_out.write(s_feature_send_out.read());
             // #ifndef ACCL_SYNTHESIS
-            //     std::cout <<"reduce root dataTransform loop3: wr_count:"<<i<<std::endl;
+            //     std::cout <<"reduce root dataTransform loop1: wr_count:"<<i<<std::endl;
             // #endif
         }
-
-        // for (int i = 0; i < 192; i++) {
-        //     #pragma HLS pipeline II=1
-        //     if (i < 64) {
-        //         s_data_out.write(s_result_node.read());
-        //     }
-        //     else if (i < 128) {
-        //         s_data_out.write(0);
-        //     }
-        //     else if (i < 188) {
-        //         s_data_out.write(s_embedding_table.read());
-        //     }
-        //     else {
-        //         s_data_out.write(0);
-        //     }
-        // }
-        // for (int i = 0; i < 2; i++) {
-        //     #pragma HLS pipeline II=1
-        //     s_data_out.write(0); // padded packet
-        // }
 
     }
 }
@@ -9381,18 +9336,6 @@ void dataTransform(STREAM<ap_uint<512> > & s_feature_in, STREAM<ap_uint<512> > &
     }
 }
 
-void stream_data_out(STREAM<ap_uint<512> >& s_data_out_buffer, STREAM<ap_uint<512> >& s_data_out)
-{
-    stream_data_out:
-    for (int i = 0; i < BATCH_NUM * BATCH_SIZE; ++i)
-    {
-        for (int j = 0; j < 192; ++j)
-        {
-            #pragma HLS pipeline II=1
-            s_data_out.write(s_data_out_buffer.read());
-        }
-    }
-}
 
 void pad_zero(STREAM<ap_uint<512> >& s_padded_zero)
 {

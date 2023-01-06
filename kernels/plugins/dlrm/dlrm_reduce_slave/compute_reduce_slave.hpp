@@ -1896,7 +1896,7 @@ void gather_results_node1(
     STREAM<ap_uint<512> > & s_result1_partial_0,
     STREAM<ap_uint<512> > & s_result_node);
 
-void dataTransform(STREAM<ap_uint<512> >& s_result_node_partial, STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > & s_padded_zero, STREAM<ap_uint<512> > & s_data_out);
+void dataTransform(STREAM<ap_uint<512> >& s_result1_node1_partial_embed, STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > & s_padded_zero, STREAM<ap_uint<512> > & s_data_out);
 
 void dataTransform(STREAM<ap_uint<512> > & s_feature_in, STREAM<ap_uint<512> > & s_data_out);
 
@@ -1976,25 +1976,26 @@ const int depth_s_embedding_buffer_wide_HBM28 = VECTOR_SIZE_HBM_BANK_28 * FIFO_B
 const int depth_s_embedding_buffer_wide_HBM29 = VECTOR_SIZE_HBM_BANK_29 * FIFO_BATCH_SIZE / 4;
 const int depth_s_embedding_buffer_wide_HBM30 = VECTOR_SIZE_HBM_BANK_30 * FIFO_BATCH_SIZE / 4;
 
-void recvDataTransform(STREAM<ap_uint<512> > & s_data_in, STREAM<ap_uint<512> > & s_result1_node1_partial, STREAM<ap_uint<512> > & s_result1_node1, STREAM<ap_uint<512> > & s_data_in_zero){
+//s_feature_in is 50 words, padding 14 words, s_result1_node1_partial 64 words
+void recvDataTransform(STREAM<ap_uint<512> > & s_data_in, STREAM<ap_uint<512> > & s_result1_node1_partial, STREAM<ap_uint<512> > & s_feature_in, STREAM<ap_uint<512> > & s_data_in_zero){
 
     for_each_item:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
         
-        for (int i = 0; i < 128; i++){
+        for (int i = 0; i < 50; i++) {
             #pragma HLS pipeline II=1
-            s_result1_node1_partial.write(s_data_in.read());
+            s_feature_in.write(s_data_in.read()); 
         }
 
-        for (int i = 0; i < 60; i++) {
-            #pragma HLS pipeline II=1
-            s_result1_node1.write(s_data_in.read()); 
-        }
-
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 14; i++) {
             #pragma HLS pipeline II=1
             s_data_in_zero.write(s_data_in.read()); // padded packet
         }
+
+        for (int i = 0; i < 64; i++){
+            #pragma HLS pipeline II=1
+            s_result1_node1_partial.write(s_data_in.read());
+        }    
 
     }
 }
@@ -2376,7 +2377,7 @@ void store_features(
 {
 
     ap_uint<512> features_local[FEATURE_SIZE / INTS_PER_W / 4];
-#pragma HLS BIND_STORAGE variable=features_local type=RAM_1P impl=URAM
+#pragma HLS BIND_STORAGE variable=features_local type=RAM_1P impl=BRAM
 
     for_each_item:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
@@ -9327,32 +9328,23 @@ void gather_results_node1(
     }
 }
 
-void dataTransform(STREAM<ap_uint<512> > & s_result_node_partial, STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > & s_padded_zero, STREAM<ap_uint<512> > & s_data_out){
+void dataTransform(STREAM<ap_uint<512> > & s_result1_node1_partial_embed, STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > & s_data_out){
 
     ValidData:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
 
-        for (int i = 0; i < 64; i++) {
-            #pragma HLS pipeline II=1
-            s_data_out.write(s_result_node_partial.read()); 
-        }
-
         for (int i = 0; i < 64; i++){
             #pragma HLS pipeline II=1
-            ap_uint<512> tmp_data_0 = s_result_node_partial.read();
-            ap_uint<512> tmp_data_1 = s_result_node.read();
-            ap_uint<512> tmp_data_out;
-            for (int j = 0; j < 16; j++) {
-                #pragma HLS unroll
-                tmp_data_out(32*j+31, 32*j) = tmp_data_0(32*j+31, 32*j) + tmp_data_1(32*j+31, 32*j);
-            }
+            ap_uint<512> tmp_data_out = s_result_node.read();
             s_data_out.write(tmp_data_out);
         }
 
         for (int i = 0; i < 64; i++) {
             #pragma HLS pipeline II=1
-            s_data_out.write(s_padded_zero.read()); // padded packet
+            s_data_out.write(s_result1_node1_partial_embed.read()); 
         }
+
+        
 
     }
 }
@@ -9377,18 +9369,6 @@ void dataTransform(STREAM<ap_uint<512> > & s_feature_in, STREAM<ap_uint<512> > &
 }
 
 
-void stream_data_out(STREAM<ap_uint<512> >& s_data_out_buffer, STREAM<ap_uint<512> >& s_data_out)
-{
-    stream_data_out:
-    for (int i = 0; i < BATCH_NUM * BATCH_SIZE; ++i)
-    {
-        for (int j = 0; j < 192; ++j)
-        {
-            #pragma HLS pipeline II=1
-            s_data_out.write(s_data_out_buffer.read());
-        }
-    }
-}
 
 void pad_zero(STREAM<ap_uint<512> >& s_padded_zero)
 {
@@ -9403,13 +9383,14 @@ void pad_zero(STREAM<ap_uint<512> >& s_padded_zero)
     }
 }
 
+template<const int NUM_ZERO>
 void consumeData_zero(
     STREAM<ap_uint<512> >& s_data_in_zero
 ) {
 
     for (int i = 0; i < BATCH_NUM * BATCH_SIZE; ++i)
     {
-        for (int j = 0; j < 4; ++j)
+        for (int j = 0; j < NUM_ZERO; ++j)
         {
             #pragma HLS pipeline II=1
             s_data_in_zero.read();

@@ -457,11 +457,13 @@ void dlrm_embedding_compute(
         s_result1_partial_0,
         s_result1_node1);
 
-    //padding 78 words
-    pad_zero<78>(s_padded_zero);
+    //padding 14 words
+    pad_zero<14>(s_padded_zero);
 
-    //embedding 50 word, results 64 words, data out is padded to 192 words
+    //embedding 50 word, padding 14 words, results 64 words; data out is 128 words
     dataTransform(s_embedding_table, s_result1_node1, s_padded_zero, s_data_out);
+
+
 
     //set up interfaces
     accl_hls::ACCLData data_dlrm(data_to_cclo, data_from_cclo);
@@ -469,6 +471,45 @@ void dlrm_embedding_compute(
     //and push the result into the CCLO stream
     data_dlrm.push_from_stream(s_data_out, dlrm_count, 0);
 
+}
+
+void dlrm_embedding_compute_cmd(
+    int num_cmd,
+    int count,
+    unsigned int destination,
+    ap_uint<32> comm_adr, 
+    ap_uint<32> dpcfg_adr,
+    STREAM<command_word> &cmd_to_cclo
+)
+{
+#pragma HLS INLINE off
+    cmd_loop:
+    for (int i=0; i< num_cmd; i++)
+    {
+        //send command to CCLO
+        accl_hls::start(ACCL_SEND, count, comm_adr, destination, 0, 9, dpcfg_adr, 0, 3, 0, 0, 0, cmd_to_cclo);
+        #ifndef ACCL_SYNTHESIS
+            std::cout << "dlrm_embedding: stream_put count=" << count << " destination=" << destination << "\n";
+        #endif
+    }
+}
+
+void dlrm_embedding_compute_ack(
+    int num_cmd,
+    STREAM<command_word> &sts_from_cclo
+)
+{
+#pragma HLS INLINE off
+
+    ack_loop:
+    for (int i=0; i< num_cmd; i++)
+    {
+        // finalize the call
+        accl_hls::finalize(sts_from_cclo);
+        #ifndef ACCL_SYNTHESIS
+            std::cout << "dlrm_embedding: finish" << "\n";
+        #endif
+    }
 }
 
 void dlrm_embedding(
@@ -525,20 +566,25 @@ void dlrm_embedding(
         data_from_cclo
     );
 
-    // //send out a nop for measurement purposes
-    // accl_hls::start(ACCL_NOP, 0, comm_adr, 0, 0, 0, dpcfg_adr, 0, 0, 0, 0, 0, cmd_to_cclo);
-    // accl_hls::finalize(sts_from_cclo);
-    // #ifndef ACCL_SYNTHESIS
-    //     std::cout << "dlrm_embedding barrier finish" << "\n";
-    // #endif
-    
-    int dlrm_count = BATCH_NUM * BATCH_SIZE * 3 * 64 * 16;
+    int dlrm_one_inference_count = 2 * 64 * 16;
+    int num_inference = BATCH_NUM * BATCH_SIZE;
+    int dlrm_count = num_inference * dlrm_one_inference_count;
 
-    //send command to CCLO
-    accl_hls::start(ACCL_SEND, dlrm_count, comm_adr, destination, 0, 9, dpcfg_adr, 0, 3, 0, 0, 0, cmd_to_cclo);
-    #ifndef ACCL_SYNTHESIS
-        std::cout << "dlrm_embedding: stream_put count=" << dlrm_count << " destination=" << destination << "\n";
-    #endif
+
+    // //send command to CCLO
+    // accl_hls::start(ACCL_SEND, dlrm_count, comm_adr, destination, 0, 9, dpcfg_adr, 0, 3, 0, 0, 0, cmd_to_cclo);
+    // #ifndef ACCL_SYNTHESIS
+    //     std::cout << "dlrm_embedding: stream_put count=" << dlrm_count << " destination=" << destination << "\n";
+    // #endif
+
+    dlrm_embedding_compute_cmd(
+        num_inference,
+        dlrm_one_inference_count,
+        destination,
+        comm_adr, 
+        dpcfg_adr,
+        cmd_to_cclo
+    );
     
     // dlrm data flow
     dlrm_embedding_compute(
@@ -553,32 +599,18 @@ void dlrm_embedding(
         dlrm_count,
         data_to_cclo,
         data_from_cclo);
+    
 
-    // finalize the call
-    accl_hls::finalize(sts_from_cclo);
-    #ifndef ACCL_SYNTHESIS
-        std::cout << "dlrm_embedding: finish" << "\n";
-    #endif
-
-    // //send out a nop for measurement purposes
-    // accl_hls::start(ACCL_NOP, 0, comm_adr, 0, 0, 0, dpcfg_adr, 0, 0, 0, 0, 0, cmd_to_cclo);
+    // // finalize the call
     // accl_hls::finalize(sts_from_cclo);
-
     // #ifndef ACCL_SYNTHESIS
-    //     std::cout << "dlrm_embedding NOP finish" << "\n";
+    //     std::cout << "dlrm_embedding: finish" << "\n";
     // #endif
 
-    // // Barrier
-    // accl_hls::barrier_non_root(
-    //     local_rank,
-    //     comm_size,
-    //     comm_adr, 
-    //     dpcfg_adr,
-    //     cmd_to_cclo,
-    //     sts_from_cclo,
-    //     data_to_cclo,
-    //     data_from_cclo
-    // );
+    dlrm_embedding_compute_ack(
+        num_inference,
+        sts_from_cclo
+    );
     
 }
 

@@ -9657,15 +9657,17 @@ void dataTransform(STREAM<ap_uint<512> >& s_embedding_table, STREAM<ap_uint<512>
             s_data_out.write(s_embedding_table.read());
         }
 
+        for (int i = 0; i < 14; i++) {
+            #pragma HLS pipeline II=1
+            s_data_out.write(s_padded_zero.read()); // padded packet
+        }
+
         for (int i = 0; i < 64; i++){
             #pragma HLS pipeline II=1
             s_data_out.write(s_result_node.read());
         }
 
-        for (int i = 0; i < 78; i++) {
-            #pragma HLS pipeline II=1
-            s_data_out.write(s_padded_zero.read()); // padded packet
-        }
+        
 
     }
 }

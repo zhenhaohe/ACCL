@@ -464,7 +464,7 @@ static STREAM<ap_uint<512> >    s_data_out;
         std::cout << "dlrm_agg: recv count:"<< count_recv << "\n";
     #endif
 
-    //s_result2_partial 16 words, s_feature_in_layer_2 128 words 
+    // s_feature_in_layer_2 128 words, s_result2_partial 16 words 
     recvDataTransform(s_data_in, s_result2_partial, s_feature_in_layer_2);
 
 

@@ -9298,14 +9298,6 @@ void dataTransform(STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > 
     ValidData:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
 
-        for (int i = 0; i < 16; i++) {
-            #pragma HLS pipeline II=1
-            s_data_out.write(s_result_node.read()); 
-            // #ifndef ACCL_SYNTHESIS
-            //     std::cout <<"reduce root dataTransform loop2: wr_count:"<<i<<std::endl;
-            // #endif
-        }  
-
         for (int i = 0; i < 128; i++) {
             #pragma HLS pipeline II=1
             s_data_out.write(s_feature_send_out.read());
@@ -9313,6 +9305,14 @@ void dataTransform(STREAM<ap_uint<512> > & s_result_node, STREAM<ap_uint<512> > 
             //     std::cout <<"reduce root dataTransform loop1: wr_count:"<<i<<std::endl;
             // #endif
         }
+
+        for (int i = 0; i < 16; i++) {
+            #pragma HLS pipeline II=1
+            s_data_out.write(s_result_node.read()); 
+            // #ifndef ACCL_SYNTHESIS
+            //     std::cout <<"reduce root dataTransform loop2: wr_count:"<<i<<std::endl;
+            // #endif
+        }  
 
     }
 }

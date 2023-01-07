@@ -377,7 +377,7 @@ static STREAM<ap_uint<512> >    s_data_out;
     );
 
 
-    //16 words of s_result2_node1, 128 words of s_feature_send_out; total 144 words
+    //128 words of s_feature_send_out, 16 words of s_result2_node1; total 144 words
     dataTransform(s_result2_node1, s_feature_send_out, s_data_out);
 
     // read data from stream_buf and put to CCLO for reduction

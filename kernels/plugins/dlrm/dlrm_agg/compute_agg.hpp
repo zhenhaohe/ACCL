@@ -2031,14 +2031,14 @@ void recvDataTransform(STREAM<ap_uint<512> > & s_data_in, STREAM<ap_uint<512> > 
     for_each_item:
     for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
         
-        for (int i = 0; i < 16; i++){
-            #pragma HLS pipeline II=1
-            s_result2_partial.write(s_data_in.read());
-        }
-
         for (int i = 0; i < 128; i++){
             #pragma HLS pipeline II=1
             s_feature_in.write(s_data_in.read());
+        }
+
+        for (int i = 0; i < 16; i++){
+            #pragma HLS pipeline II=1
+            s_result2_partial.write(s_data_in.read());
         }
 
     }

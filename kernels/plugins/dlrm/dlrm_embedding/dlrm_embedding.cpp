@@ -586,6 +586,7 @@ void dlrm_embedding(
         cmd_to_cclo
     );
     
+    
     // dlrm data flow
     dlrm_embedding_compute(
         table_HBM0,

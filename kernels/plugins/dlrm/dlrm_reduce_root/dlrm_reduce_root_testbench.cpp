@@ -12,11 +12,14 @@ int main()
     ap_uint<32> reduce_comm_adr = 0;
     ap_uint<32> dpcfg_adr = 0;
 
-    int dlrm_count = BATCH_NUM * BATCH_SIZE * 3 * 64 * 16;
-    int dlrm_word_cnt = dlrm_count/16;
+    int dlrm_one_inference_count_send = (2 * 64 + 16) * 16;
+    int dlrm_one_inference_count_recv = 2 * 64 * 16;
+    int num_inference = BATCH_NUM * BATCH_SIZE;
+    int dlrm_count_send = num_inference * dlrm_one_inference_count_send;
+    int dlrm_count_recv = num_inference * dlrm_one_inference_count_recv;
 
     hls::stream<command_word> cmd_to_cclo, sts_from_cclo;
-	  hls::stream<stream_word> data_to_cclo, data_from_cclo;
+	hls::stream<stream_word> data_to_cclo, data_from_cclo;
 
     // data received from barrier
     stream_word tmp_word;
@@ -27,9 +30,13 @@ int main()
     sts_word.data = 1;
 
     sts_from_cclo.write(sts_word); // pop in barrier status
-    sts_from_cclo.write(sts_word); // pop in send status
 
-    for (int i = 0; i< dlrm_word_cnt; i++)
+    for (int j = 0; j < num_inference; j++)
+    {
+      sts_from_cclo.write(sts_word); // pop in send status
+    }
+
+    for (int i = 0; i< dlrm_count_recv/16; i++)
     {
         data_from_cclo.write(tmp_word); // data received from reduce slave node
     }
@@ -61,13 +68,16 @@ int main()
     data_to_cclo.read();
     std::cout<<"dlrm barrier data"<<std::endl;
 
-    for (int i = 0; i< 15; i++)
+    for (int j = 0; j < num_inference; j++)
     {
-        command_word cmd = cmd_to_cclo.read(); // read dlrm send
-        std::cout<<"dlrm send cmd:"<<cmd.data<<std::endl;
+        for (int i = 0; i< 15; i++)
+        {
+            command_word cmd = cmd_to_cclo.read(); // read dlrm send
+            std::cout<<"dlrm send cmd:"<<cmd.data<<std::endl;
+        }
     }
 
-    for (int i =0; i< dlrm_word_cnt; i++)
+    for (int i =0; i< dlrm_count_send/16; i++)
     {   
         data_to_cclo.read();
         std::cout<<"dlrm send data "<<i<<std::endl;

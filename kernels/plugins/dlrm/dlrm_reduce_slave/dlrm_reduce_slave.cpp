@@ -32,7 +32,6 @@ void dlrm_reduce_slave_comupute(
     STREAM<ap_uint<512> > s_feature_out;
 #pragma HLS stream variable=s_feature_out depth=512
 
-
     STREAM<W_TYPE> s_feature1_PE0_0;
     STREAM<W_TYPE> s_feature1_PE0_1;
     STREAM<D_TYPE> s_result1_PE0;

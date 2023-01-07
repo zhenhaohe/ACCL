@@ -5846,6 +5846,73 @@ void matmul_PE_UNROLL8(
     }
 } 
 
+template<const int FEATURE_SIZE>
+void matmul_PE_UNROLL8_SINGLE_ROW(
+    STREAM<W_TYPE>& s_feature_PE_0,
+    STREAM<W_TYPE>& s_feature_PE_1,
+    STREAM<D_TYPE>& s_result_PE) {
+#pragma HLS inline off
+
+    const int ROW_PER_PE = 1;
+
+    W_TYPE weights_transpose_local[ROW_PER_PE * FEATURE_SIZE / INTS_PER_W];
+#pragma HLS BIND_STORAGE variable=weights_transpose_local type=RAM_2P impl=BRAM
+
+    init_weights<FEATURE_SIZE, ROW_PER_PE>(weights_transpose_local);
+
+    D_TYPE result_ram[BATCH_NUM * BATCH_SIZE];
+
+    item_loop:
+    for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
+
+        D_TYPE result = 0;
+        int result_idx = 0;
+        dot_product:
+        // NOTE: manually unroll 2 here
+        for (int d = 0; d < FEATURE_SIZE / INTS_PER_W / 2; d++) {
+            #pragma HLS pipeline II=1
+            W_TYPE reg_f_0 = s_feature_PE_0.read();
+            W_TYPE reg_f_1 = s_feature_PE_1.read();
+            W_TYPE reg_w_0 = weights_transpose_local[result_idx * FEATURE_SIZE / INTS_PER_W / 2 + 2 * d];
+            W_TYPE reg_w_1 = weights_transpose_local[result_idx * FEATURE_SIZE / INTS_PER_W / 2 + 2 * d + 1];
+
+            D_TYPE first_f_0 = reg_f_0.range(31, 0);
+            D_TYPE second_f_0 = reg_f_0.range(63, 32);
+            D_TYPE third_f_0 = reg_f_0.range(95, 64);
+            D_TYPE fourth_f_0 = reg_f_0.range(127, 96);
+
+            D_TYPE first_w_0= reg_w_0.range(31, 0);
+            D_TYPE second_w_0 = reg_w_0.range(63, 32);
+            D_TYPE third_w_0 = reg_w_0.range(95, 64);
+            D_TYPE fourth_w_0 = reg_w_0.range(127, 96);
+
+            D_TYPE first_f_1 = reg_f_1.range(31, 0);
+            D_TYPE second_f_1 = reg_f_1.range(63, 32);
+            D_TYPE third_f_1 = reg_f_1.range(95, 64);
+            D_TYPE fourth_f_1 = reg_f_1.range(127, 96);
+
+            D_TYPE first_w_1= reg_w_1.range(31, 0);
+            D_TYPE second_w_1 = reg_w_1.range(63, 32);
+            D_TYPE third_w_1 = reg_w_1.range(95, 64);
+            D_TYPE fourth_w_1 = reg_w_1.range(127, 96);
+
+            
+            result += 
+                first_f_0 * first_w_0 + second_f_0 * second_w_0 + 
+                third_f_0 * third_w_0 + fourth_f_0 * fourth_w_0 + 
+                first_f_1 * first_w_1 + second_f_1 * second_w_1 + 
+                third_f_1 * third_w_1 + fourth_f_1 * fourth_w_1;
+            
+            result_ram[item] = result;
+        }        
+    }
+
+    result_loop:
+    for (int item = 0; item < BATCH_NUM * BATCH_SIZE; item++) {
+        s_result_PE.write(result_ram[item]);
+    }
+} 
+
 // template<>
 // void init_weights<ROOT_HIDDEN_SIZE1, ROOT_ROW_PER_PE2, WEIGHT_BRAM>(W_TYPE* weights_transpose_local) {
 

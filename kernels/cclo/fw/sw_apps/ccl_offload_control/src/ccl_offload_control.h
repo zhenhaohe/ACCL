@@ -76,15 +76,22 @@
 #define ACCL_REDUCE_SCATTER 11
 #define ACCL_BARRIER        12
 #define ACCL_ALLTOALL       13
+#define ACCL_NOP            255
 
 //ACCL_CONFIG SUBFUNCTIONS
 #define HOUSEKEEP_SWRST                0
 #define HOUSEKEEP_PKTEN                1
 #define HOUSEKEEP_TIMEOUT              2
 #define HOUSEKEEP_EAGER_MAX_SIZE       3
-#define HOUSEKEEP_SET_MAX_SEGMENT_SIZE 6
+#define HOUSEKEEP_RENDEZVOUS_MAX_SIZE  4
 
 //AXI MMAP address
+#define REDUCE_FLAT_TREE_MAX_RANKS_OFFSET       0x1FD0
+#define REDUCE_FLAT_TREE_MAX_COUNT_OFFSET       0x1FD4
+#define TMP1_OFFSET       0x1FD8    //address of first spare buffer in device memory
+#define TMP2_OFFSET       0x1FE0    //address of second spare buffer in device memory
+#define TMP3_OFFSET       0x1FE8    //address of third spare buffer in device memory
+#define PERFCTR_OFFSET    0x1FF0
 #define CFGRDY_OFFSET     0x1FF4
 #define HWID_OFFSET       0x1FF8
 #define RETVAL_OFFSET     0x1FFC
@@ -98,6 +105,7 @@
 #define RX_ENQUEUE_BASEADDR   0x60000
 #define RX_SEEK_BASEADDR      0x70000
 #define GPIO_BASEADDR         0x40000000
+#define PERFCTR_BASEADDR      0x40001000
 #else       
 #define EXCHMEM_BASEADDR      0x0000
 #define NET_RXPKT_BASEADDR    0x3000
@@ -106,7 +114,7 @@
 #define RX_ENQUEUE_BASEADDR   0x6000
 #define RX_SEEK_BASEADDR      0x7000
 #define GPIO_BASEADDR         0x8000
-
+#define PERFCTR_BASEADDR      0x9000
 #endif
 
 //https://www.xilinx.com/html_docs/xilinx2020_2/vitis_doc/managing_interface_synthesis.html#tzw1539734223235
@@ -116,10 +124,16 @@
 #define CONTROL_READY_MASK      0x00000001 << 3
 #define CONTROL_REPEAT_MASK     0x00000001 << 7
 
-#define GPIO_DATA_REG      GPIO_BASEADDR + 0x0000
-#define GPIO2_DATA_REG     GPIO_BASEADDR + 0x0008
-#define GPIO_READY_MASK       0x00000001
-#define GPIO_SWRST_MASK       0x00000002
+#define GPIO_DATA_REG           GPIO_BASEADDR + 0x0000
+#define GPIO_TRI_REG            GPIO_BASEADDR + 0x0004
+#define GPIO2_DATA_REG          GPIO_BASEADDR + 0x0008
+#define GPIO2_TRI_REG           GPIO_BASEADDR + 0x000C
+#define PERFCTR_CONTROL_REG     PERFCTR_BASEADDR +0x0000
+#define PERFCTR_DATA_REG        PERFCTR_BASEADDR +0x0008
+#define GPIO_READY_MASK         0x00000001
+#define GPIO_SWRST_MASK         0x00000002
+#define PERFCTR_SCLR_MASK       0x00000001
+#define PERFCTR_CE_MASK         0x00000002
 
 //EXCEPTIONS
 #define NO_ERROR                                      0   
@@ -139,8 +153,8 @@
 #define DEQUEUE_BUFFER_SPARE_BUFFER_INDEX_ERROR       (1<<13)
 #define COLLECTIVE_NOT_IMPLEMENTED                    (1<<14)
 #define RECEIVE_OFFCHIP_SPARE_BUFF_ID_NOT_VALID       (1<<15)
-#define OPEN_PORT_NOT_SUCCEEDED                       (1<<16)
-#define OPEN_CON_NOT_SUCCEEDED                        (1<<17)
+#define EAGER_THRESHOLD_INVALID                       (1<<16)
+#define RENDEZVOUS_THRESHOLD_INVALID                  (1<<17)
 #define DMA_SIZE_ERROR                                (1<<18)
 #define ARITH_ERROR                                   (1<<19) 
 #define PACK_TIMEOUT_STS_ERROR                        (1<<20)
@@ -150,8 +164,7 @@
 #define KRNL_STS_COUNT_ERROR                          (1<<24)
 #define SEGMENTER_EXPECTED_BTT_ERROR                  (1<<25)
 #define DMA_TAG_MISMATCH_ERROR                        (1<<26)
-#define CLOSE_CON_NOT_SUCCEEDED                       (1<<27)
-#define NOT_READY_ERROR                               (1<<28)
+#define NOT_READY_ERROR                               (1<<31)
 
 //define opcodes for move offload
 //each address parameter (op0, op1, res) should carry one of these opcodes
@@ -213,7 +226,11 @@ typedef struct{
 } dm_config;
 
 //utility functions for register mapped accesses
+#ifdef MB_FW_EMULATION
 extern uint32_t *cfgmem;
+#else
+extern uint32_t volatile *cfgmem;
+#endif
 #define Xil_Out32(offset, value) {cfgmem[(offset)/4] = (value);}
 #define Xil_In32(offset) ({uint32_t value = cfgmem[(offset)/4]; value; })
 
@@ -261,13 +278,11 @@ typedef struct {
 #define STATUS_OFFSET           0
 #define ADDRL_OFFSET            1
 #define ADDRH_OFFSET            2
-#define MAX_LEN_OFFSET          3
-#define RX_TAG_OFFSET           4
-#define RX_LEN_OFFSET           5
-#define RX_SRC_OFFSET           6
-#define SEQUENCE_NUMBER_OFFSET  7   
-#define SPARE_BUFFER_SIZE       32
-#define SPARE_BUFFER_FIELDS     8       
+#define RX_TAG_OFFSET           3
+#define RX_LEN_OFFSET           4
+#define RX_SRC_OFFSET           5
+#define SEQUENCE_NUMBER_OFFSET  6   
+#define SPARE_BUFFER_FIELDS     7       
 
 #define STATUS_IDLE     0x00
 #define STATUS_ENQUEUED 0x01
@@ -275,7 +290,9 @@ typedef struct {
 #define STATUS_ERROR    0x04
 
 #define RX_BUFFER_COUNT_OFFSET 0x0
-#define COMM_OFFSET (RX_BUFFER_COUNT_OFFSET+4*(1 + Xil_In32(RX_BUFFER_COUNT_OFFSET)*SPARE_BUFFER_FIELDS))
+#define RX_BUFFER_MAX_LEN_OFFSET 0x4
+#define RX_BUFFER_METADATA_OFFSET 0x8
+#define COMM_OFFSET (RX_BUFFER_METADATA_OFFSET+4*Xil_In32(RX_BUFFER_COUNT_OFFSET)*SPARE_BUFFER_FIELDS)
 
 typedef struct {
     unsigned int ip;

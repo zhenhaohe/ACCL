@@ -25,12 +25,14 @@
 
 static unsigned int timeout = 1 << 28;
 static unsigned int max_eager_size = (1<<15);
-static unsigned int max_segment_size = DMA_MAX_BTT;
+static unsigned int max_rendezvous_size = (1<<15);
+static unsigned int eager_rx_buf_size = DMA_MAX_BTT;
 static unsigned int num_rndzv_pending = 0;
 static unsigned int num_retry_pending = 0;
 static bool new_call = true;
 static bool flush_retries = false;
 static unsigned int current_step;
+static unsigned int datatype_nbytes;
 
 static datapath_arith_config arcfg;
 static communicator world;
@@ -44,7 +46,7 @@ uint32_t *cfgmem = sim_cfgmem;
 hlslib::Stream<ap_axiu<32,0,0,0>, 512> cmd_fifos[5];
 hlslib::Stream<ap_axiu<32,0,0,0>, 512> sts_fifos[5];
 #else
-uint32_t *cfgmem = (uint32_t *)(EXCHMEM_BASEADDR);
+uint32_t volatile *cfgmem = (uint32_t volatile *)(EXCHMEM_BASEADDR);
 #endif
 
 //utility functions
@@ -56,6 +58,27 @@ inline int min(int x, int y){
 /*Function to find maximum of x and y*/
 inline int max(int x, int y){
     return x - ((x - y) & ((x - y) >> 31));
+}
+
+/*Function to find log2 of uint32*/
+inline unsigned int fast_log2(unsigned int val){
+    unsigned int ret;
+    unsigned int s;
+
+    ret = (val > 0xFFFF) << 4;
+    val >>= ret;
+    s = (val > 0xFF) << 3;
+    val >>= s;
+    ret |= s;
+    s = (val > 0xF) << 2;
+    val >>= s;
+    ret |= s;
+    s = (val > 0x3) << 1;
+    val >>= s;
+    ret |= s;
+    ret |= (val >> 1);
+
+    return ret;
 }
 
 //retrieves all the communicator
@@ -314,6 +337,77 @@ int rendezvous_get_completion(unsigned int target_rank, uint64_t target_addr, bo
     return NOT_READY_ERROR;
 }
 
+//receives an acknowledgement that a RDMA WRITE to 
+//our buffer has completed
+int rendezvous_get_any_completion(unsigned int *target_rank, uint64_t *target_addr, bool *target_host, uint32_t target_count, uint32_t target_tag){
+    uint32_t type, rank, tag, count, host;
+    uint64_t addr;
+    uint64_t addrl, addrh;
+    bool match;
+    // Check if there are pending notifications in STS_RNDZV_PENDING,
+    // otherwise pull from STS_RNDZV
+    unsigned int i;
+    for(i = 0; i<num_rndzv_pending; i++){
+        type = getd(STS_RNDZV_PENDING);
+        rank = getd(STS_RNDZV_PENDING);
+        tag = getd(STS_RNDZV_PENDING);
+        addrl = getd(STS_RNDZV_PENDING);
+        addrh = getd(STS_RNDZV_PENDING);
+        addr = ((uint64_t)addrh << 32) | (uint64_t)addrl;
+        host = getd(STS_RNDZV_PENDING);
+        count = getd(STS_RNDZV_PENDING);
+        match = (type == 3) && ((tag == target_tag) || (tag == TAG_ANY)) && (count == target_count);
+        if(!match){
+            //copy from STS_RNDZV to STS_RNDZV_PENDING
+            putd(CMD_RNDZV_PENDING, type);
+            putd(CMD_RNDZV_PENDING, rank);
+            putd(CMD_RNDZV_PENDING, tag);
+            putd(CMD_RNDZV_PENDING, addrl);
+            putd(CMD_RNDZV_PENDING, addrh);
+            putd(CMD_RNDZV_PENDING, host);
+            putd(CMD_RNDZV_PENDING, count);
+            putd(CMD_RNDZV_PENDING, host);
+            putd(CMD_RNDZV_PENDING, count);
+        } else {
+            num_rndzv_pending--;
+            *target_rank = rank;
+            *target_addr = addr;
+            *target_host = host;
+            return NO_ERROR;
+        }
+    }
+    //if we're still executing, no match in RNDZV_PENDING, check STS_RNDZV
+    while(!tngetd(STS_RNDZV)){
+        type = getd(STS_RNDZV);
+        rank = getd(STS_RNDZV);
+        tag = getd(STS_RNDZV);
+        addrl = getd(STS_RNDZV);
+        addrh = getd(STS_RNDZV);
+        addr = ((uint64_t)addrh << 32) | (uint64_t)addrl;
+        host = getd(STS_RNDZV);
+        count = getd(STS_RNDZV);
+        match = (type == 3) && ((tag == target_tag) || (tag == TAG_ANY)) && (count == target_count);
+        if(!match){
+            //copy from STS_RNDZV to STS_RNDZV_PENDING
+            putd(CMD_RNDZV_PENDING, type);
+            putd(CMD_RNDZV_PENDING, rank);
+            putd(CMD_RNDZV_PENDING, tag);
+            putd(CMD_RNDZV_PENDING, addrl);
+            putd(CMD_RNDZV_PENDING, addrh);
+            putd(CMD_RNDZV_PENDING, host);
+            putd(CMD_RNDZV_PENDING, count);
+            num_rndzv_pending++;
+        } else {
+            *target_rank = rank;
+            *target_addr = addr;
+            *target_host = host;
+            return NO_ERROR;
+        }
+    }
+    //we found nothing, signal this up to caller
+    return NOT_READY_ERROR;
+}
+
 //configure datapath before calling this method
 //instructs the data plane to move data
 //use MOVE_IMMEDIATE
@@ -490,7 +584,7 @@ int send(
     unsigned int host = (buftype >> 8) & 0xff;
     unsigned int stream = buftype & 0xff;
     //get count in bytes
-    unsigned int bytes_count = Xil_In32(arcfg_offset)*count;
+    unsigned int bytes_count = datatype_nbytes*count;
     if((bytes_count > max_eager_size) && (compression == NO_COMPRESSION) && (stream == NO_STREAM)){
         //Rendezvous without segmentation
         //get remote address
@@ -524,7 +618,7 @@ int send(
         //destination compression == Ethernet compression
         //(since data can't be decompressed on remote side)
         //calculate max segment size in elements, from element size 
-        unsigned int max_seg_count = max_segment_size / Xil_In32(arcfg_offset);
+        unsigned int max_seg_count = eager_rx_buf_size / datatype_nbytes;
         //calculate number of segments required for this send
         unsigned int nseg = (count+max_seg_count-1)/max_seg_count;
         int i;
@@ -570,7 +664,7 @@ int recv(
     unsigned int stream = buftype & 0xff;
     unsigned int host = (buftype >> 8) & 0xff;
     //get count in bytes
-    unsigned int bytes_count = Xil_In32(arcfg_offset)*count;
+    unsigned int bytes_count = datatype_nbytes*count;
     if((bytes_count > max_eager_size) && (compression == NO_COMPRESSION) && (stream == NO_STREAM)){
         //rendezvous without segmentation
         bool is_host = ((host & RES_HOST) != 0);
@@ -585,7 +679,7 @@ int recv(
         //if ETH_COMPRESSED is set, also set OP1_COMPRESSED
         compression |= (compression & ETH_COMPRESSED) >> 2;
         //calculate max segment size in elements, from element size 
-        unsigned int max_seg_count = max_segment_size / Xil_In32(arcfg_offset);
+        unsigned int max_seg_count = eager_rx_buf_size / datatype_nbytes;
         //calculate number of segments required for this send
         unsigned int nseg = (count+max_seg_count-1)/max_seg_count;
         int i;
@@ -701,7 +795,7 @@ int fused_recv_reduce_send(
 //moving to the next part of the buffer to be transmitted.
 //use MOVE_IMMEDIATE and MOVE_INCREMENTING and MOVE_REPEATING in sequence
 int broadcast(  unsigned int count,
-                unsigned int src_rank,
+                unsigned int root_rank,
                 uint64_t buf_addr,
                 unsigned int comm_offset,
                 unsigned int arcfg_offset,
@@ -711,59 +805,119 @@ int broadcast(  unsigned int count,
     unsigned int host = (buftype >> 8) & 0xff;
     int err = NO_ERROR;
 
-    unsigned int bytes_count = Xil_In32(arcfg_offset)*count;
+    unsigned int bytes_count = datatype_nbytes*count;
     if((bytes_count > max_eager_size) && (compression == NO_COMPRESSION) && (stream == NO_STREAM)){
-        if(src_rank == world.local_rank){
-            //get remote address
-            uint64_t dst_addr;
-            uint32_t dst_rank;
-            bool dst_host;
-            unsigned int pending_moves = 0;
-            //if root, wait for addresses then send
-            while(current_step < (world.size-1)){
-                int status = rendezvous_get_any_addr(&dst_rank, &dst_addr, &dst_host, count, TAG_ANY);
-                if(status == NOT_READY_ERROR){
-                    //we're not yet ready to serve this send, queue it for retry after flushing moves
-                    while(pending_moves > 0){
-                        err |= end_move();
-                        pending_moves--;
-                    }
-                    //if err was NO_ERROR, we'll retry, otherwise give up
-                    return (err | status);
-                }
-                if(dst_host){
-                    host |= RES_HOST;
-                }
-                //do a RDMA write to the remote address 
-                start_move(
-                    MOVE_IMMEDIATE,
-                    MOVE_NONE,
-                    MOVE_IMMEDIATE,
-                    pack_flags_rendezvous(host),
-                    0, count, comm_offset, arcfg_offset, 
-                    buf_addr, 0, dst_addr, 0, 0, 0,
-                    0, 0, dst_rank, TAG_ANY
-                );
-                pending_moves++;
-                current_step++;
-                if(pending_moves > 2){
+        uint64_t dst_addr;
+        uint32_t dst_rank;
+        bool dst_host = ((host & RES_HOST) != 0);
+        bool src_host = ((host & OP0_HOST) != 0);
+
+        if(world.size > 3){
+            //binary tree broadcast
+            //we double the number of broadcasting nodes in each round until we've broadcast to every rank
+            //starting broadcast is from root to the rank with the index equal to the largest power of 2
+            //which is strictly smaller than worldsize: 2^floor(log2(worldsize-1))
+            //D0(x) = 2^floor(log2(x-1))
+            //examples: D0(3) = 2^floor(log2(2)) = 2; D0(4) = 2^floor(log2(3)) = 2; D0(5) = 2^floor(log2(4)) = 4
+            //
+            //from the sender's point of view, we send in rounds, whereby in each round
+            //    we send to a rank at distance D from ourselves
+            //    from ranks of index divisible by 2D
+            //    we halve the distance
+            //from the receiver's point of view:
+            //    at each round if our local rank index is divisible by D, receive from distance -D (if that is >= 0)
+            //    if we've received once, we convert to sender for remaining rounds
+            //
+            //an example for worldsize = 9
+            //round 0: D = D0(9) = 8  where 16 divides local rank index: 0 -> 8
+            //round 1: D = 4          where  8 divides local rank index: 0 -> 4, 8 -> x
+            //round 2: D = 2          where  4 divides local rank index: 0 -> 2, 4 -> 6, 8 -> x
+            //round 3: D = 1          where  2 divides local rank index: 0 -> 1, 2 -> 3, 4 -> 5, 6 -> 7, 8 -> x
+            //round 4: D = 0 - DONE!
+            
+            unsigned int d = 1<<fast_log2(world.size-1);
+            bool sender = (root_rank == world.local_rank);
+
+            //calculate normalized rank l, where root is index 0
+            unsigned int l = (world.local_rank + world.size - root_rank) % world.size;
+            
+            while(d > 0){
+                if(sender && (l % (2*d) == 0) && (l+d < world.size)){
+                    unsigned int receiver_rank = (l + d + root_rank) % world.size;
+                    while(rendezvous_get_addr(receiver_rank, &dst_addr, &dst_host, count, TAG_ANY) == NOT_READY_ERROR);\
+                    start_move(
+                        MOVE_IMMEDIATE,
+                        MOVE_NONE,
+                        MOVE_IMMEDIATE,
+                        pack_flags_rendezvous((src_host << 2) | dst_host),
+                        0, count, comm_offset, arcfg_offset, 
+                        buf_addr, 0, dst_addr, 0, 0, 0,
+                        0, 0, receiver_rank, TAG_ANY
+                    );
                     err |= end_move();
-                    pending_moves--;
+                } else if(!sender && ((l % d) == 0) && ((l-d) >= 0)){
+                    unsigned int sender_rank = (l - d + root_rank + world.size) % world.size;
+                    rendezvous_send_addr(sender_rank, buf_addr, dst_host, count, TAG_ANY);
+                    while(rendezvous_get_completion(sender_rank, buf_addr, dst_host, count, TAG_ANY) == NOT_READY_ERROR);
+                    //we now become a sender
+                    sender = true;
+                    src_host = dst_host;
                 }
-            }
-            while(pending_moves > 0){
-                err |= end_move();
-                pending_moves--;
+                d >>= 1; //halve d
             }
             return err;
         } else {
-            //if not root, send address then wait completion
-            bool res_is_host = ((host & RES_HOST) != 0);
-            if(current_step == 0){
-                rendezvous_send_addr(src_rank, buf_addr, res_is_host, count, TAG_ANY);
-                current_step++;
+            //out-of-order high-fanout implementation
+            //better tolerance for rank skews, preferable for small world sizes
+            if(root_rank == world.local_rank){
+                //get remote address
+                unsigned int pending_moves = 0;
+                //if root, wait for addresses then send
+                while(current_step < (world.size-1)){
+                    int status = rendezvous_get_any_addr(&dst_rank, &dst_addr, &dst_host, count, TAG_ANY);
+                    if(status == NOT_READY_ERROR){
+                        //we're not yet ready to serve this send, queue it for retry after flushing moves
+                        while(pending_moves > 0){
+                            err |= end_move();
+                            pending_moves--;
+                        }
+                        //if err was NO_ERROR, we'll retry, otherwise give up
+                        return (err | status);
+                    }
+                    if(dst_host){
+                        host |= RES_HOST;
+                    }
+                    //do a RDMA write to the remote address 
+                    start_move(
+                        MOVE_IMMEDIATE,
+                        MOVE_NONE,
+                        MOVE_IMMEDIATE,
+                        pack_flags_rendezvous(host),
+                        0, count, comm_offset, arcfg_offset, 
+                        buf_addr, 0, dst_addr, 0, 0, 0,
+                        0, 0, dst_rank, TAG_ANY
+                    );
+                    pending_moves++;
+                    current_step++;
+                    if(pending_moves > 2){
+                        err |= end_move();
+                        pending_moves--;
+                    }
+                }
+                while(pending_moves > 0){
+                    err |= end_move();
+                    pending_moves--;
+                }
+                return err;
+            } else {
+                //if not root, send address then wait completion
+                bool res_is_host = ((host & RES_HOST) != 0);
+                if(current_step == 0){
+                    rendezvous_send_addr(root_rank, buf_addr, res_is_host, count, TAG_ANY);
+                    current_step++;
+                }
+                return rendezvous_get_completion(root_rank, buf_addr, res_is_host, count, TAG_ANY);
             }
-            return rendezvous_get_completion(src_rank, buf_addr, res_is_host, count, TAG_ANY);
         }
     } else {
         unsigned int max_seg_count;
@@ -777,13 +931,13 @@ int broadcast(  unsigned int count,
             //compute count from uncompressed elem bytes in aright config
             //instead of Xil_In32 we could use:
             //(datapath_arith_config*)(arcfg_offset)->uncompressed_elem_bytes;
-            max_seg_count = max_segment_size / Xil_In32(arcfg_offset);
+            max_seg_count = eager_rx_buf_size / datatype_nbytes;
         }
 
         int expected_ack_count = 0;
         while(elems_remaining > 0){
             //determine if we're sending or receiving
-            if(src_rank == world.local_rank){
+            if(root_rank == world.local_rank){
                 //on the root we only care about ETH_COMPRESSED and OP0_COMPRESSED
                 //so replace RES_COMPRESSED with ETH_COMPRESSED
                 compression = compression | ((compression & ETH_COMPRESSED) >> 1);
@@ -796,7 +950,7 @@ int broadcast(  unsigned int count,
                         MOVE_IMMEDIATE,
                         pack_flags(compression, RES_REMOTE, host & OP0_HOST),
                         0, 
-                        (i == src_rank) ? 0 : min(max_seg_count, elems_remaining),
+                        (i == root_rank) ? 0 : min(max_seg_count, elems_remaining),
                         comm_offset, arcfg_offset,
                         buf_addr, 0, 0, 0, 0, 0,
                         0, 0, i, TAG_ANY
@@ -821,7 +975,7 @@ int broadcast(  unsigned int count,
                     min(max_seg_count, elems_remaining),
                     comm_offset, arcfg_offset,
                     0, 0, buf_addr, 0, 0, 0,
-                    src_rank, TAG_ANY, 0, 0
+                    root_rank, TAG_ANY, 0, 0
                 );
             }
             elems_remaining -= max_seg_count;
@@ -852,7 +1006,7 @@ int scatter(unsigned int count,
 
     int err = NO_ERROR;
 
-    unsigned int bytes_count = Xil_In32(arcfg_offset)*count;
+    unsigned int bytes_count = datatype_nbytes*count;
     if((bytes_count > max_eager_size) && (compression == NO_COMPRESSION) && (stream == NO_STREAM)){
         if(src_rank == world.local_rank){
             //get remote address
@@ -982,11 +1136,10 @@ int gather( unsigned int count,
             unsigned int buftype){
     unsigned int stream = buftype & 0xff;
     unsigned int host = (buftype >> 8) & 0xff;
-    uint64_t tmp_buf_addr;
     unsigned int i, curr_pos, next_in_ring, prev_in_ring, number_of_shift;
     int err = NO_ERROR;
 
-    unsigned int bytes_count = Xil_In32(arcfg_offset)*count;
+    unsigned int bytes_count = datatype_nbytes*count;
     if((bytes_count > max_eager_size) && (compression == NO_COMPRESSION) && (stream == NO_STREAM)){
         bool dst_host;
         int status;
@@ -1160,106 +1313,198 @@ int allgather(
 ){
     unsigned int stream = buftype & 0xff;
     unsigned int host = (buftype >> 8) & 0xff;
-    int i, curr_pos, rel_stride, abs_stride, next_in_ring, prev_in_ring;
+    int i;
     int err = NO_ERROR;
+    int next_in_ring = (world.local_rank + 1) % world.size;
+    int prev_in_ring = (world.local_rank + world.size - 1) % world.size;
 
-    //compression is tricky for the relay: we've already received into the destination buffer
-    //with associated flag RES_COMPRESSED; this buffer becomes the source for a send
-    //so if RES_COMPRESSED is set, OP0_COMPRESSED must be set for the send, and RES_COMPRESSED reset
-    unsigned int relay_compression = (compression & RES_COMPRESSED) ? (compression | OP0_COMPRESSED) : compression;
-    relay_compression &= ~(RES_COMPRESSED);
+    unsigned int bytes_count = datatype_nbytes*count;
+    if((bytes_count > max_eager_size) && (compression == NO_COMPRESSION) && (stream == NO_STREAM)){
+        //rendezvous ring allgather with P segments
+        //TODO: each rank pulls from next_in_ring into a segment, pushes a segment to prev_in_ring
+        //we do this for P-1 steps (such that each rank gathers the P-1 segments it's missing)
+        //at each step: send a addr notif to neighbour and wait for an address notif from neighbour + transfer
+        bool dst_buf_host = (host & RES_HOST) != 0;
+        bool downstream_host;
+        uint64_t downstream_addr, upstream_addr;
+        int status;
+        //start copy to ourselves while we're sending/receiving addresses
+        if(current_step == 0){
+            start_move(
+                MOVE_IMMEDIATE,
+                MOVE_NONE,
+                MOVE_IMMEDIATE,
+                pack_flags(compression, RES_LOCAL, host),
+                0, count, comm_offset, arcfg_offset, 
+                src_buf_addr, 0, dst_buf_addr + world.local_rank*bytes_count,
+                0, 0, 0,
+                0, 0, 0, TAG_ANY
+            );
+            //we're sending the address to prev_in_ring, who will write to us 
+            rendezvous_send_addr(prev_in_ring, dst_buf_addr, dst_buf_host, count, TAG_ANY);
+            current_step++;
+        }
+        //get address of buffer in next_in_ring - where we'll write
+        //this step has retries
+        if(current_step == 1){
+            status = rendezvous_get_addr(next_in_ring, &downstream_addr, &downstream_host, count, TAG_ANY);
+            if(status == NOT_READY_ERROR){
+                //if err was NO_ERROR, we'll retry, otherwise give up
+                return status;
+            } else {
+                err |= end_move();
+                current_step++;
+            }
+        }
+        //wait-and-forward loop
+        int pending_moves = 0;
+        //forward own segment downstream first
+        if(downstream_host){
+            host |= RES_HOST;
+        }
+        if(dst_buf_host){
+            host |= OP0_HOST;
+        }
+        start_move(
+            MOVE_IMMEDIATE,
+            MOVE_NONE,
+            MOVE_IMMEDIATE,
+            pack_flags_rendezvous(host),
+            0, count, comm_offset, arcfg_offset, 
+            dst_buf_addr + world.local_rank*bytes_count, 0, downstream_addr + world.local_rank*bytes_count,
+            0, 0, 0,
+            0, 0, next_in_ring, TAG_ANY
+        );
+        pending_moves++;
+        i=prev_in_ring;
+        while(i != world.local_rank){
+            //get completion for a segment 
+            upstream_addr = dst_buf_addr + i*bytes_count;
+            while(rendezvous_get_completion(prev_in_ring, upstream_addr, dst_buf_host, count, TAG_ANY) == NOT_READY_ERROR);
+            if(i != next_in_ring) {
+                //send from the received segment
+                start_move(
+                    MOVE_IMMEDIATE,
+                    MOVE_NONE,
+                    MOVE_IMMEDIATE,
+                    pack_flags_rendezvous(host),
+                    0, count, comm_offset, arcfg_offset, 
+                    upstream_addr, 0, downstream_addr + i*bytes_count,
+                    0, 0, 0,
+                    0, 0, next_in_ring, TAG_ANY
+                );
+                pending_moves++;
+                if(pending_moves > 2){
+                    err |= end_move();
+                    pending_moves--;
+                }
+                current_step++;
+            }
+            i = (i + world.size - 1) % world.size;
+        }
+        //flush move statuses
+        while(pending_moves > 0){
+            err |= end_move();
+            pending_moves--;
+        }
+    } else {
+        int curr_pos, rel_stride, abs_stride;
 
-    next_in_ring = (world.local_rank + 1) % world.size;
-    prev_in_ring = (world.local_rank + world.size - 1) % world.size;
+        //compression is tricky for the relay: we've already received into the destination buffer
+        //with associated flag RES_COMPRESSED; this buffer becomes the source for a send
+        //so if RES_COMPRESSED is set, OP0_COMPRESSED must be set for the send, and RES_COMPRESSED reset
+        unsigned int relay_compression = (compression & RES_COMPRESSED) ? (compression | OP0_COMPRESSED) : compression;
+        relay_compression &= ~(RES_COMPRESSED);
 
-    //prime the address slot for the destination, so we can subsequently stride against it
-    start_move(
-        MOVE_NONE, MOVE_NONE, MOVE_IMMEDIATE,
-        pack_flags(NO_COMPRESSION, RES_LOCAL, NO_HOST),
-        0,
-        0,
-        0, arcfg_offset,
-        src_buf_addr, 0, dst_buf_addr, 0, 0, 0,
-        0, 0, 0, 0
-    );
+        //prime the address slot for the destination, so we can subsequently stride against it
+        start_move(
+            MOVE_NONE, MOVE_NONE, MOVE_IMMEDIATE,
+            pack_flags(NO_COMPRESSION, RES_LOCAL, NO_HOST),
+            0,
+            0,
+            0, arcfg_offset,
+            src_buf_addr, 0, dst_buf_addr, 0, 0, 0,
+            0, 0, 0, 0
+        );
 
-    //copy our local data into the appropriate destination slot
-    start_move(
-        MOVE_IMMEDIATE, MOVE_NONE, MOVE_STRIDE,
-        pack_flags(compression, RES_LOCAL, host),
-        0,
-        count,
-        0, arcfg_offset,
-        src_buf_addr, 0, 0, 0, 0, count*world.local_rank,
-        0, 0, 0, 0
-    );
+        //copy our local data into the appropriate destination slot
+        start_move(
+            MOVE_IMMEDIATE, MOVE_NONE, MOVE_STRIDE,
+            pack_flags(compression, RES_LOCAL, host),
+            0,
+            count,
+            0, arcfg_offset,
+            src_buf_addr, 0, 0, 0, 0, count*world.local_rank,
+            0, 0, 0, 0
+        );
 
-    //send to next in ring
-    //ETH_COMPRESSED flag overwrites RES_COMPRESSED
-    start_move(
-        MOVE_IMMEDIATE, MOVE_NONE, MOVE_IMMEDIATE,
-        pack_flags(compression | ((compression & ETH_COMPRESSED) >> 1), RES_REMOTE, host),
-        0,
-        count,
-        comm_offset, arcfg_offset,
-        src_buf_addr, 0, 0, 0, 0, 0,
-        0, 0, next_in_ring, TAG_ANY
-    );
-
-    err |= end_move();
-    err |= end_move();
-    err |= end_move();
-
-    //receive and forward from all other members of the communicator
-    curr_pos = world.local_rank;
-    for(i=0; i<world.size-1; i++){
-        rel_stride = count*((curr_pos == 0) ? (world.size-1) : -1);
-        abs_stride = count*((curr_pos == 0) ? (world.size-1) : curr_pos-1);
-
-        //we use a blocking move here, because we want to avoid a race condition with the relay below
-        //TODO: avoid this; we either need to solve the RAW dependency in hardware (the generic approach),
-        //or a way to reuse a rx buffer (solves this problem in particular but does not extend to e.g. reduces)
-        //e.g. MOVE_ON_RECV_KEEP which would keep the RX buffer in the pending state
-        // on compression: ETH_COMPRESSED flag overwrites OP1_COMPRESSED
-        err |= move(
-            MOVE_NONE, MOVE_ON_RECV, MOVE_STRIDE,
-            pack_flags(compression | ((compression & ETH_COMPRESSED) >> 2), RES_LOCAL, host & RES_HOST),
+        //send to next in ring
+        //ETH_COMPRESSED flag overwrites RES_COMPRESSED
+        start_move(
+            MOVE_IMMEDIATE, MOVE_NONE, MOVE_IMMEDIATE,
+            pack_flags(compression | ((compression & ETH_COMPRESSED) >> 1), RES_REMOTE, host),
             0,
             count,
             comm_offset, arcfg_offset,
-            0, 0, 0, 0, 0, rel_stride,
-            prev_in_ring, TAG_ANY, 0, 0
+            src_buf_addr, 0, 0, 0, 0, 0,
+            0, 0, next_in_ring, TAG_ANY
         );
 
-        if(i < world.size-2){ //if not the last data, relay to the next in ring
-            //first prime the address
-            start_move(
-                MOVE_NONE, MOVE_IMMEDIATE, MOVE_NONE,
-                pack_flags(NO_COMPRESSION, RES_REMOTE, NO_HOST),
-                0,
-                0,
-                comm_offset, arcfg_offset,
-                0, dst_buf_addr, 0, 0, 0, 0,
-                0, 0, next_in_ring, TAG_ANY
-            );
-            //send
-            //here we're copying from the result buffer back into the network, so
-            //RES_COMPRESSED flag overwrites OP0_COMPRESSED, and
-            //ETH_COMPRESSED flag overwrites RES_COMPRESSED
-            start_move(
-                MOVE_NONE, MOVE_STRIDE, MOVE_IMMEDIATE,
-                pack_flags(((compression & RES_COMPRESSED) >> 2) | ((compression & ETH_COMPRESSED) >> 1), RES_REMOTE, host),
+        err |= end_move();
+        err |= end_move();
+        err |= end_move();
+
+        //receive and forward from all other members of the communicator
+        curr_pos = world.local_rank;
+        for(i=0; i<world.size-1; i++){
+            rel_stride = count*((curr_pos == 0) ? (world.size-1) : -1);
+            abs_stride = count*((curr_pos == 0) ? (world.size-1) : curr_pos-1);
+
+            //we use a blocking move here, because we want to avoid a race condition with the relay below
+            //TODO: avoid this; we either need to solve the RAW dependency in hardware (the generic approach),
+            //or a way to reuse a rx buffer (solves this problem in particular but does not extend to e.g. reduces)
+            //e.g. MOVE_ON_RECV_KEEP which would keep the RX buffer in the pending state
+            // on compression: ETH_COMPRESSED flag overwrites OP1_COMPRESSED
+            err |= move(
+                MOVE_NONE, MOVE_ON_RECV, MOVE_STRIDE,
+                pack_flags(compression | ((compression & ETH_COMPRESSED) >> 2), RES_LOCAL, host & RES_HOST),
                 0,
                 count,
                 comm_offset, arcfg_offset,
-                0, 0, 0, 0, abs_stride, 0,
-                0, 0, next_in_ring, TAG_ANY
+                0, 0, 0, 0, 0, rel_stride,
+                prev_in_ring, TAG_ANY, 0, 0
             );
 
-            err |= end_move();
-            err |= end_move();
+            if(i < world.size-2){ //if not the last data, relay to the next in ring
+                //first prime the address
+                start_move(
+                    MOVE_NONE, MOVE_IMMEDIATE, MOVE_NONE,
+                    pack_flags(NO_COMPRESSION, RES_REMOTE, NO_HOST),
+                    0,
+                    0,
+                    comm_offset, arcfg_offset,
+                    0, dst_buf_addr, 0, 0, 0, 0,
+                    0, 0, next_in_ring, TAG_ANY
+                );
+                //send
+                //here we're copying from the result buffer back into the network, so
+                //RES_COMPRESSED flag overwrites OP0_COMPRESSED, and
+                //ETH_COMPRESSED flag overwrites RES_COMPRESSED
+                start_move(
+                    MOVE_NONE, MOVE_STRIDE, MOVE_IMMEDIATE,
+                    pack_flags(((compression & RES_COMPRESSED) >> 2) | ((compression & ETH_COMPRESSED) >> 1), RES_REMOTE, host),
+                    0,
+                    count,
+                    comm_offset, arcfg_offset,
+                    0, 0, 0, 0, abs_stride, 0,
+                    0, 0, next_in_ring, TAG_ANY
+                );
+
+                err |= end_move();
+                err |= end_move();
+            }
+            curr_pos = (curr_pos + world.size - 1) % world.size;
         }
-        curr_pos = (curr_pos + world.size - 1) % world.size;
     }
 
     return err;
@@ -1278,21 +1523,229 @@ int reduce( unsigned int count,
             unsigned int buftype){
     unsigned int stream = buftype & 0xff;
     unsigned int host = (buftype >> 8) & 0xff;
-    unsigned int next_in_ring = (world.local_rank + 1) % world.size;
-    unsigned int prev_in_ring = (world.local_rank + world.size-1) % world.size;
+    unsigned int bytes_count = datatype_nbytes*count;
 
     if(world.size == 1){
         //corner-case copy for when running a single-node reduction
         return copy(count, src_addr, dst_addr, arcfg_offset, compression, buftype);
-    }else if( prev_in_ring == root_rank){
-        //non root ranks immediately after the root sends; only OP0_STREAM and OP0_HOST flags are relevant here
-        return send(next_in_ring, count, src_addr, comm_offset, arcfg_offset, TAG_ANY, compression, ((host & OP0_HOST) << 8) | (stream & OP0_STREAM));
-    }else if (world.local_rank != root_rank){
-        //non root ranks sends their data + data received from previous rank to the next rank in sequence as a daisy chain; only OP0_STREAM flag is relevant here
-        return fused_recv_reduce_send(prev_in_ring, next_in_ring, count, func, src_addr, comm_offset, arcfg_offset, TAG_ANY, compression, ((host & OP0_HOST) << 8) | (stream & OP0_STREAM));
-    }else{
-        //root only receive from previous node in the ring, add its local buffer and save in destination buffer
-        return fused_recv_reduce(prev_in_ring, count, func, src_addr, dst_addr, comm_offset, arcfg_offset, TAG_ANY, compression, buftype);
+    }else if((bytes_count > max_eager_size) && (compression == NO_COMPRESSION) && (stream == NO_STREAM)){
+        //get scratchpad buffers from exchmem
+        uint64_t tmp1_addr = ((uint64_t)Xil_In32(TMP1_OFFSET+4) << 32) | (uint64_t)Xil_In32(TMP1_OFFSET);
+        uint64_t tmp2_addr = ((uint64_t)Xil_In32(TMP2_OFFSET+4) << 32) | (uint64_t)Xil_In32(TMP2_OFFSET);
+        uint64_t tmp3_addr = ((uint64_t)Xil_In32(TMP3_OFFSET+4) << 32) | (uint64_t)Xil_In32(TMP3_OFFSET);
+        //rendezvous tree reduce using tmp_addr as a scratchpad (preferably in device memory)
+        unsigned int err = NO_ERROR;
+
+        if(world.size <= Xil_In32(REDUCE_FLAT_TREE_MAX_RANKS_OFFSET) || bytes_count <= Xil_In32(REDUCE_FLAT_TREE_MAX_COUNT_OFFSET)){
+            //flat tree reduce:
+            //useful for small messages and small communicators, where the extra hops for binary tree are detrimental
+            //we effectively flat-tree gather all data from non-root into one of the rendezvous spare buffers
+            //we sum up the data as it comes in (assuming commutativity, user beware)
+            bool dst_host;
+            bool src_buf_host = (host & OP0_HOST) != 0;
+            bool dst_buf_host = (host & RES_HOST) != 0;
+            int status;
+            uint64_t buf_addr;
+            if(root_rank == world.local_rank){
+                uint32_t src_rank;
+                //send addresses
+                for(src_rank=0; src_rank < world.size; src_rank++){
+                    //skip sending address for ourselves
+                    if(src_rank == world.local_rank){
+                        continue;
+                    }
+                    //compute address into the first rendezvous spare buffer
+                    buf_addr = tmp1_addr + src_rank*bytes_count;
+                    rendezvous_send_addr(src_rank, buf_addr, false, count, TAG_ANY);
+                }
+                //wait for completions out-of-order
+                int i, pending_moves=0;
+                for(i=0; i < world.size-1; i++){
+                    while(rendezvous_get_any_completion(&src_rank, &buf_addr, &dst_host, bytes_count, TAG_ANY) == NOT_READY_ERROR);
+                    //start a reduction into either tmp2 or tmp3
+                    uint64_t accum_addr = (i % 2) ? tmp2_addr : tmp3_addr;
+                    uint64_t prev_accum_addr = (i % 2) ? tmp3_addr : tmp2_addr;
+                    //manipulate host flags such that on first iteration we set OP0_HOST
+                    //if src_addr is in host memory, and on last iteration we set RES_HOST
+                    //if dst_addr is in host memory
+                    host = ((i==0) && src_buf_host) | (((i==world.size-2) && dst_buf_host) << 2);
+                    start_move(
+                        MOVE_IMMEDIATE,
+                        MOVE_IMMEDIATE,
+                        MOVE_IMMEDIATE,
+                        pack_flags(NO_COMPRESSION, RES_LOCAL, host),
+                        func, count,
+                        comm_offset, arcfg_offset,
+                        (i==0) ? src_addr : prev_accum_addr, buf_addr, (i==world.size-2) ? dst_addr : accum_addr, 0, 0, 0,
+                        0, 0, 0, 0
+                    );
+                    pending_moves++;
+                    if(pending_moves > 2){
+                        err |= end_move();
+                        pending_moves--;
+                    }
+                }
+                while(pending_moves > 0){
+                    err |= end_move();
+                    pending_moves--;
+                }
+                return err;
+            } else {
+                while(rendezvous_get_addr(root_rank, &buf_addr, &dst_host, count, TAG_ANY) == NOT_READY_ERROR);
+                if(dst_host){
+                    host |= RES_HOST;
+                }
+                //do a RDMA write to the remote address 
+                return move(
+                    MOVE_IMMEDIATE,
+                    MOVE_NONE,
+                    MOVE_IMMEDIATE,
+                    pack_flags_rendezvous(host),
+                    0, count, comm_offset, arcfg_offset, 
+                    src_addr, 0, buf_addr, 0, 0, 0,
+                    0, 0, root_rank, TAG_ANY
+                );
+            }
+        } else {
+            //binary tree reduce:
+            //at each step, each rank can do one or more of 3 actions: send (S), receive (R), and sum (+)
+            //for rendezvous, R involves an address send and completion check and does not involve the DMP
+            //for rendezvous, S involves an address get and a DMP move
+            //+ involves a DMP move from src_addr/dst_addr and tmp_addr to dst_addr
+            //send and sum can be fused into a single action denoted +S
+            //
+            //we denote N as the step number
+            //the action distance D = 2^N is the distance (in ranks) over which we communicate
+            //L is the normalized local rank, obtained by subtracting root rank number from local rank, mod size
+            //at each step, we calculate whether we perform any of the actions:
+            //S(N,L) = (L%2D != 0) && (L != 0) = (L%(1<<(N+1)) != 0) && (L != 0)
+            //R(N,L) = !S(N,L) && ((L+D)<size) = !S(N,L) && ((L+1<<N)<size)
+            //+(N,L) = R(N-1,L)
+            //
+            //we have available two scratchpad buffers in device memory and the dst buffer in host or device memory
+            //at each time step we optionally receive into one scratchpad, alternating
+            //we accumulate in the dst buffer from previously received data
+            //
+            //we make sure that we operate from src_addr instead of dst_addr the very first time
+            //
+            //execution completed on root if !R or on non-root if S
+            //
+            //note: the implementation is more complex because we want to be stateless
+            //everything should be computed from the current step such that we can swap the reduce in and out of execution
+            unsigned int l = (world.local_rank + world.size - root_rank) % world.size;
+            unsigned int d, n = 0;
+            bool s = false;
+            bool r = false;
+            bool plus = false;
+            bool is_root = (l==0);
+            uint64_t remote_addr;
+            bool remote_host;
+            unsigned int receiving_rank, sending_rank;
+            unsigned int scratchpad_sel;
+            uint64_t current_accumulator_addr;
+            uint64_t previous_accumulator_addr; //TODO: implement without saving from current
+            uint64_t current_recv_addr;
+            uint64_t previous_recv_addr; //TODO: implement without saving from current
+            bool first_move = true; //TODO: implement without this state bit
+            bool last_move = false; //TODO: implement without this state bit
+            while(1){
+                d = 1<<n;
+                s = (l%(2*d) != 0) && !is_root;
+                r = !s && ((l+d)<world.size);
+                plus = !((l%d != 0) && !is_root) && ((l+d/2)<world.size) && (n>0);
+                scratchpad_sel = (n % 3);
+                current_recv_addr = (scratchpad_sel == 0) ? tmp1_addr : (scratchpad_sel == 1) ? tmp2_addr : tmp3_addr;
+                current_accumulator_addr = (scratchpad_sel == 0) ? tmp2_addr : (scratchpad_sel == 1) ? tmp3_addr : tmp1_addr;
+                receiving_rank = (l+world.size-d+root_rank)%world.size;
+                sending_rank = (l+d+root_rank)%world.size;
+                last_move = is_root && (d > world.size);//last move if the next-largest distance is larger than world size
+                //TODO instead of just-in-time distributing addresses, we could do one run through this loop ahead
+                //of time just for address distribution, then do address resolution just-in-time
+                if(r){
+                    rendezvous_send_addr(sending_rank, current_recv_addr, false, count, TAG_ANY);
+                }
+                //address resolution in case we need to send
+                if(s){
+                    while(rendezvous_get_addr(receiving_rank, &remote_addr, &remote_host, count, TAG_ANY) == NOT_READY_ERROR);
+                    //adjust host flags and addresses in case we're sending from dst and scratchpad
+                    if(n > 1){
+                        if((host & RES_HOST) != 1){
+                            host |= OP0_HOST;
+                        }
+                        if((n > 1) && remote_host){
+                            host |= RES_HOST;
+                        }
+                    }
+                }
+                //DMP ops for sending/combining
+                if(s && plus){
+                    //fused combine+send
+                    err |= move(
+                        MOVE_IMMEDIATE,
+                        MOVE_IMMEDIATE,
+                        MOVE_IMMEDIATE,
+                        pack_flags_rendezvous(host),
+                        func, count,
+                        comm_offset, arcfg_offset,
+                        first_move ? src_addr : previous_accumulator_addr, previous_recv_addr, remote_addr, 0, 0, 0,
+                        0, 0, receiving_rank, TAG_ANY
+                    );
+                } else if(s) {
+                    //send
+                    err |= move(
+                        MOVE_IMMEDIATE,
+                        MOVE_NONE,
+                        MOVE_IMMEDIATE,
+                        pack_flags_rendezvous(host),
+                        func, count,
+                        comm_offset, arcfg_offset,
+                        first_move ? src_addr : previous_accumulator_addr, 0, remote_addr, 0, 0, 0,
+                        0, 0, receiving_rank, TAG_ANY
+                    );
+                } else if(plus) {
+                    //combine
+                    err |= move(
+                        MOVE_IMMEDIATE,
+                        MOVE_IMMEDIATE,
+                        MOVE_IMMEDIATE,
+                        pack_flags(NO_COMPRESSION, RES_LOCAL, host),
+                        func, count,
+                        comm_offset, arcfg_offset,
+                        first_move ? src_addr : previous_accumulator_addr, previous_recv_addr, last_move ? dst_addr : current_accumulator_addr, 0, 0, 0,
+                        0, 0, 0, 0
+                    );
+                }
+                //wait for completion on receives
+                if(r){
+                    while(rendezvous_get_completion(sending_rank, current_recv_addr, false, count, TAG_ANY) == NOT_READY_ERROR);
+                }
+                //end conditions
+                if((!r && is_root) || (s && !is_root)) return err;
+                //update first move
+                if(s || plus){
+                    first_move = false;
+                }
+                //increment step
+                n++;
+                //update scratchpads
+                previous_accumulator_addr = current_accumulator_addr;
+                previous_recv_addr = current_recv_addr;
+            }
+        }
+
+    } else {
+        unsigned int next_in_ring = (world.local_rank + 1) % world.size;
+        unsigned int prev_in_ring = (world.local_rank + world.size-1) % world.size;
+        if( prev_in_ring == root_rank){
+            //non root ranks immediately after the root sends; only OP0_STREAM and OP0_HOST flags are relevant here
+            return send(next_in_ring, count, src_addr, comm_offset, arcfg_offset, TAG_ANY, compression, ((host & OP0_HOST) << 8) | (stream & OP0_STREAM));
+        }else if (world.local_rank != root_rank){
+            //non root ranks sends their data + data received from previous rank to the next rank in sequence as a daisy chain; only OP0_STREAM flag is relevant here
+            return fused_recv_reduce_send(prev_in_ring, next_in_ring, count, func, src_addr, comm_offset, arcfg_offset, TAG_ANY, compression, ((host & OP0_HOST) << 8) | (stream & OP0_STREAM));
+        }else{
+            //root only receive from previous node in the ring, add its local buffer and save in destination buffer
+            return fused_recv_reduce(prev_in_ring, count, func, src_addr, dst_addr, comm_offset, arcfg_offset, TAG_ANY, compression, buftype);
+        }
     }
 }
 
@@ -1310,83 +1763,97 @@ int reduce_scatter(
 ){
     unsigned int stream = buftype & 0xff;
     unsigned int host = (buftype >> 8) & 0xff;
-    int i, curr_pos, rel_stride, abs_stride, next_in_ring, prev_in_ring;
+    int i, curr_pos, rel_stride, next_in_ring, prev_in_ring;
     int err = NO_ERROR;
     unsigned int tmp_compression = NO_COMPRESSION;
+    unsigned int bytes_count = datatype_nbytes*count;
 
     if(world.size == 1){
         //corner-case copy for when running a single-node reduction
         return copy(count, src_buf_addr, dst_buf_addr, arcfg_offset, compression, buftype);
-    }
+    } else if((bytes_count > max_eager_size) && (compression == NO_COMPRESSION) && (stream == NO_STREAM)){
+        //reduce-scatter via reduction+scatter
+        //copy the OP0_HOST flag over RES_HOST 
+        //because we're broadcasting from the allreduce result buffer
+        unsigned int r_host = (host & OP0_HOST) | ((host & OP0_HOST) << 2);
+        unsigned int r_buftype = (buftype & 0xFFFFFF00) | (r_host & 0xFF);
+        //reduce step - we reduce back into src_buf_addr
+        while(reduce(count*world.size, func, 0, src_buf_addr, src_buf_addr, comm_offset, arcfg_offset, compression, r_buftype) == NOT_READY_ERROR);
+        //copy the RES_HOST flag over OP0_HOST 
+        //because we're broadcasting from the allreduce result buffer
+        host = (host & RES_HOST) | ((host & RES_HOST) >> 2);
+        buftype = (buftype & 0xFFFFFF00) | (host & 0xFF);
+        //broadcast step
+        while(scatter(count, 0, src_buf_addr, dst_buf_addr, comm_offset, arcfg_offset, compression, buftype) == NOT_READY_ERROR);
+    } else {
+        next_in_ring = (world.local_rank + 1) % world.size;
+        prev_in_ring = (world.local_rank + world.size - 1) % world.size;
 
-    next_in_ring = (world.local_rank + 1) % world.size;
-    prev_in_ring = (world.local_rank + world.size - 1) % world.size;
+        //preamble: send our data to next in ring
+        //prime the address slot for the source, so we can subsequently stride against it
+        start_move(
+            MOVE_IMMEDIATE, MOVE_NONE, MOVE_NONE,
+            pack_flags(NO_COMPRESSION, RES_LOCAL, NO_HOST),
+            0,
+            0,
+            0, arcfg_offset,
+            src_buf_addr, 0, 0, 0, 0, 0,
+            0, 0, 0, 0
+        );
 
-    //preamble: send our data to next in ring
-    //prime the address slot for the source, so we can subsequently stride against it
-    start_move(
-        MOVE_IMMEDIATE, MOVE_NONE, MOVE_NONE,
-        pack_flags(NO_COMPRESSION, RES_LOCAL, NO_HOST),
-        0,
-        0,
-        0, arcfg_offset,
-        src_buf_addr, 0, 0, 0, 0, 0,
-        0, 0, 0, 0
-    );
+        curr_pos = prev_in_ring;
 
-    curr_pos = prev_in_ring;
+        //send local chunk to next in ring
+        //send: keep OP0_COMPRESSED, replace RES_COMPRESSED by ETH_COMPRESSED
+        tmp_compression = (compression & OP0_COMPRESSED) | ((compression & ETH_COMPRESSED) >> 1);
+        start_move(
+            MOVE_STRIDE, MOVE_NONE, MOVE_IMMEDIATE,
+            pack_flags(tmp_compression, RES_REMOTE, host & OP0_HOST),
+            0,
+            count,
+            comm_offset, arcfg_offset,
+            0, 0, 0, count*curr_pos, 0, 0,
+            0, 0, next_in_ring, TAG_ANY
+        );
 
-    //send local chunk to next in ring
-    //send: keep OP0_COMPRESSED, replace RES_COMPRESSED by ETH_COMPRESSED
-    tmp_compression = (compression & OP0_COMPRESSED) | ((compression & ETH_COMPRESSED) >> 1);
-    start_move(
-        MOVE_STRIDE, MOVE_NONE, MOVE_IMMEDIATE,
-        pack_flags(tmp_compression, RES_REMOTE, host & OP0_HOST),
-        0,
-        count,
-        comm_offset, arcfg_offset,
-        0, 0, 0, count*curr_pos, 0, 0,
-        0, 0, next_in_ring, TAG_ANY
-    );
+        //receive and reduce+forward from all other members of the communicator
+        for(i=0; i<world.size-1; i++){
+            rel_stride = count*((curr_pos == 0) ? (world.size-1) : -1);
 
-    //receive and reduce+forward from all other members of the communicator
-    for(i=0; i<world.size-1; i++){
-        rel_stride = count*((curr_pos == 0) ? (world.size-1) : -1);
-
-        //simultaneous receive, reduce and send for the received chunk,
-        //unless it is the last step, in which case we don't send, but save locally
-        if(i < world.size-2){
-            tmp_compression = (compression & OP0_COMPRESSED) | ((compression & ETH_COMPRESSED) >> 2) | ((compression & ETH_COMPRESSED) >> 1);
-            start_move(
-                MOVE_STRIDE, MOVE_ON_RECV, MOVE_IMMEDIATE,
-                pack_flags(tmp_compression, RES_REMOTE, host & OP0_HOST),
-                func,
-                count,
-                comm_offset, arcfg_offset,
-                0, 0, 0, rel_stride, 0, 0,
-                prev_in_ring, TAG_ANY, next_in_ring, TAG_ANY
-            );
-        } else{
-            tmp_compression = compression | ((compression & ETH_COMPRESSED) >> 2);
-            start_move(
-                MOVE_STRIDE, MOVE_ON_RECV, MOVE_IMMEDIATE,
-                pack_flags(tmp_compression, RES_LOCAL, host),
-                func,
-                count,
-                comm_offset, arcfg_offset,
-                0, 0, dst_buf_addr, rel_stride, 0, 0,
-                prev_in_ring, TAG_ANY, 0, 0
-            );
+            //simultaneous receive, reduce and send for the received chunk,
+            //unless it is the last step, in which case we don't send, but save locally
+            if(i < world.size-2){
+                tmp_compression = (compression & OP0_COMPRESSED) | ((compression & ETH_COMPRESSED) >> 2) | ((compression & ETH_COMPRESSED) >> 1);
+                start_move(
+                    MOVE_STRIDE, MOVE_ON_RECV, MOVE_IMMEDIATE,
+                    pack_flags(tmp_compression, RES_REMOTE, host & OP0_HOST),
+                    func,
+                    count,
+                    comm_offset, arcfg_offset,
+                    0, 0, 0, rel_stride, 0, 0,
+                    prev_in_ring, TAG_ANY, next_in_ring, TAG_ANY
+                );
+            } else{
+                tmp_compression = compression | ((compression & ETH_COMPRESSED) >> 2);
+                start_move(
+                    MOVE_STRIDE, MOVE_ON_RECV, MOVE_IMMEDIATE,
+                    pack_flags(tmp_compression, RES_LOCAL, host),
+                    func,
+                    count,
+                    comm_offset, arcfg_offset,
+                    0, 0, dst_buf_addr, rel_stride, 0, 0,
+                    prev_in_ring, TAG_ANY, 0, 0
+                );
+            }
+            curr_pos = (curr_pos + world.size - 1) % world.size;
+            //pop one result here to keep the result FIFO not full
+            err |= end_move();
         }
-        curr_pos = (curr_pos + world.size - 1) % world.size;
-        //pop one result here to keep the result FIFO not full
+
+        //pop final two results
+        err |= end_move();
         err |= end_move();
     }
-
-    //pop final two results
-    err |= end_move();
-    err |= end_move();
-
     return err;
 }
 
@@ -1403,200 +1870,211 @@ int allreduce(
 ){
     unsigned int stream = buftype & 0xff;
     unsigned int host = (buftype >> 8) & 0xff;
-    int i, curr_pos, curr_count, rel_stride, abs_stride, next_in_ring, prev_in_ring;
+    int i, curr_pos, curr_count, rel_stride, next_in_ring, prev_in_ring;
     unsigned int max_seg_count, elems_remaining, elems, bulk_count, tail_count, moved_bytes;
     int err = NO_ERROR;
     unsigned int tmp_compression = NO_COMPRESSION;
     uint64_t seg_src_buf_addr = src_buf_addr;
     uint64_t seg_dst_buf_addr = dst_buf_addr;
+    unsigned int bytes_count = datatype_nbytes*count;
 
     if(world.size == 1){
         //corner-case copy for when running a single-node reduction
         return copy(count, src_buf_addr, dst_buf_addr, arcfg_offset, compression, stream);
-    }
-
-    //convert max segment size to max segment count
-    //if pulling from a stream, segment size is irrelevant and we use the
-    //count directly because streams can't be read losslessly
-    if (stream & OP0_STREAM) {
-        max_seg_count = count;
+    } else if((bytes_count > max_eager_size) && (compression == NO_COMPRESSION) && (stream == NO_STREAM)){
+        //allreduce via reduction+broadcast
+        //reduce step
+        while(reduce(count, func, 0, src_buf_addr, dst_buf_addr, comm_offset, arcfg_offset, compression, buftype) == NOT_READY_ERROR);
+        //copy the RES_HOST flag over OP0_HOST 
+        //because we're broadcasting from the allreduce result buffer
+        host = (host & RES_HOST) | ((host & RES_HOST) >> 2);
+        buftype = (buftype & 0xFFFFFF00) | (host & 0xFF);
+        //broadcast step
+        while(broadcast(count, 0, dst_buf_addr, comm_offset, arcfg_offset, compression, buftype) == NOT_READY_ERROR);
     } else {
-        //compute count from uncompressed elem bytes in aright config
-        //instead of Xil_In32 we could use:
-        //(datapath_arith_config*)(arcfg_offset)->uncompressed_elem_bytes;
-        max_seg_count = max_segment_size / Xil_In32(arcfg_offset);
-        // Round max segment size down to align with world size
-        max_seg_count -= max_seg_count % world.size;
-    }
+        //convert max segment size to max segment count
+        //if pulling from a stream, segment size is irrelevant and we use the
+        //count directly because streams can't be read losslessly
+        if (stream & OP0_STREAM) {
+            max_seg_count = count;
+        } else {
+            //compute count from uncompressed elem bytes in aright config
+            //instead of Xil_In32 we could use:
+            //(datapath_arith_config*)(arcfg_offset)->uncompressed_elem_bytes;
+            max_seg_count = eager_rx_buf_size / datatype_nbytes;
+            // Round max segment size down to align with world size
+            max_seg_count -= max_seg_count % world.size;
+        }
 
-    next_in_ring = (world.local_rank + 1) % world.size;
-    prev_in_ring = (world.local_rank + world.size - 1) % world.size;
+        next_in_ring = (world.local_rank + 1) % world.size;
+        prev_in_ring = (world.local_rank + world.size - 1) % world.size;
 
-    for (elems_remaining = count; elems_remaining > 0; elems_remaining -= elems) {
-        elems = min(max_seg_count, elems_remaining);
+        for (elems_remaining = count; elems_remaining > 0; elems_remaining -= elems) {
+            elems = min(max_seg_count, elems_remaining);
 
-        //we need to break the input into world.size chunks of equal size
-        //if count does not divide by world.size, the chunk with the largest index (tail) will be smaller
-        bulk_count = (elems + world.size - 1) / world.size;//equivalent to ceil(elems/world.size)
-        tail_count = elems - bulk_count * (world.size - 1);
+            //we need to break the input into world.size chunks of equal size
+            //if count does not divide by world.size, the chunk with the largest index (tail) will be smaller
+            bulk_count = (elems + world.size - 1) / world.size;//equivalent to ceil(elems/world.size)
+            tail_count = elems - bulk_count * (world.size - 1);
 
-        //preamble: send our data to next in ring
-        //prime the address slots for the source and destination,
-        //so we can subsequently stride against them
-        start_move(
-            MOVE_IMMEDIATE, MOVE_NONE, MOVE_IMMEDIATE,
-            pack_flags(NO_COMPRESSION, RES_LOCAL, NO_HOST),
-            0,
-            0,
-            0, arcfg_offset,
-            seg_src_buf_addr, 0, seg_dst_buf_addr, 0, 0, 0,
-            0, 0, 0, 0
-        );
+            //preamble: send our data to next in ring
+            //prime the address slots for the source and destination,
+            //so we can subsequently stride against them
+            start_move(
+                MOVE_IMMEDIATE, MOVE_NONE, MOVE_IMMEDIATE,
+                pack_flags(NO_COMPRESSION, RES_LOCAL, NO_HOST),
+                0,
+                0,
+                0, arcfg_offset,
+                seg_src_buf_addr, 0, seg_dst_buf_addr, 0, 0, 0,
+                0, 0, 0, 0
+            );
 
-        //send local chunk to next in ring
-        //send: keep OP0_COMPRESSED, replace RES_COMPRESSED by ETH_COMPRESSED
-        tmp_compression = (compression & OP0_COMPRESSED) | ((compression & ETH_COMPRESSED) >> 1);
-        start_move(
-            MOVE_STRIDE, MOVE_NONE, MOVE_IMMEDIATE,
-            pack_flags(tmp_compression, RES_REMOTE, host & OP0_HOST),
-            0,
-            (world.local_rank == world.size - 1) ? tail_count: bulk_count,
-            comm_offset, arcfg_offset,
-            0, 0, 0, bulk_count * world.local_rank, 0, 0,
-            0, 0, next_in_ring, TAG_ANY
-        );
+            //send local chunk to next in ring
+            //send: keep OP0_COMPRESSED, replace RES_COMPRESSED by ETH_COMPRESSED
+            tmp_compression = (compression & OP0_COMPRESSED) | ((compression & ETH_COMPRESSED) >> 1);
+            start_move(
+                MOVE_STRIDE, MOVE_NONE, MOVE_IMMEDIATE,
+                pack_flags(tmp_compression, RES_REMOTE, host & OP0_HOST),
+                0,
+                (world.local_rank == world.size - 1) ? tail_count: bulk_count,
+                comm_offset, arcfg_offset,
+                0, 0, 0, bulk_count * world.local_rank, 0, 0,
+                0, 0, next_in_ring, TAG_ANY
+            );
 
-        //receive and reduce+forward from all other members of the communicator
-        curr_pos = world.local_rank;
-        for (i = 0; i < world.size - 1; i++) {
-            rel_stride = bulk_count*((curr_pos == 0) ? (world.size-1) : -1);
-            curr_count = (curr_pos == 0) ? tail_count : bulk_count;
+            //receive and reduce+forward from all other members of the communicator
+            curr_pos = world.local_rank;
+            for (i = 0; i < world.size - 1; i++) {
+                rel_stride = bulk_count*((curr_pos == 0) ? (world.size-1) : -1);
+                curr_count = (curr_pos == 0) ? tail_count : bulk_count;
 
-            //simultaneous receive, reduce and send for the received chunk,
-            //unless it is the last step, in which case we don't send, but save locally
-            //unlike normal reduce-scatter, we don't save at offset 0 in the destination buffer
-            //but at the appropriate offset for the data being saved
-            if(i < world.size-2){
-                //compression: if ETH_COMPRESSED is set then we receive compressed data over the network,
-                //so we must set OP1_COMPRESSED here. Also keep OP0_COMPRESSED the same since we're reading from
-                //initial data. RES_COMPRESSED must be replaced by ETH_COMPRESSED since the result
-                //goes out to network
-                tmp_compression = (compression & OP0_COMPRESSED) | ((compression & ETH_COMPRESSED) >> 2) | ((compression & ETH_COMPRESSED) >> 1);
-                start_move(
-                    MOVE_STRIDE, MOVE_ON_RECV, MOVE_IMMEDIATE,
-                    pack_flags(tmp_compression, RES_REMOTE, host & OP0_HOST),
-                    func,
+                //simultaneous receive, reduce and send for the received chunk,
+                //unless it is the last step, in which case we don't send, but save locally
+                //unlike normal reduce-scatter, we don't save at offset 0 in the destination buffer
+                //but at the appropriate offset for the data being saved
+                if(i < world.size-2){
+                    //compression: if ETH_COMPRESSED is set then we receive compressed data over the network,
+                    //so we must set OP1_COMPRESSED here. Also keep OP0_COMPRESSED the same since we're reading from
+                    //initial data. RES_COMPRESSED must be replaced by ETH_COMPRESSED since the result
+                    //goes out to network
+                    tmp_compression = (compression & OP0_COMPRESSED) | ((compression & ETH_COMPRESSED) >> 2) | ((compression & ETH_COMPRESSED) >> 1);
+                    start_move(
+                        MOVE_STRIDE, MOVE_ON_RECV, MOVE_IMMEDIATE,
+                        pack_flags(tmp_compression, RES_REMOTE, host & OP0_HOST),
+                        func,
+                        curr_count,
+                        comm_offset, arcfg_offset,
+                        0, 0, 0, rel_stride, 0, 0,
+                        prev_in_ring, TAG_ANY, next_in_ring, TAG_ANY
+                    );
+                } else {
+                    //compression: if ETH_COMPRESSED is set then we receive compressed data over the network,
+                    //so we must set OP1_COMPRESSED here. Also keep RES_COMPRESSED and OP0_COMPRESSED the same.
+                    tmp_compression = compression | ((compression & ETH_COMPRESSED) >> 2);
+                    start_move(
+                        MOVE_STRIDE, MOVE_ON_RECV, MOVE_STRIDE,
+                        pack_flags(tmp_compression, RES_LOCAL, host & (OP0_HOST | RES_HOST)),
+                        func,
+                        curr_count,
+                        comm_offset, arcfg_offset,
+                        0, 0, 0, rel_stride, 0, bulk_count * next_in_ring,
+                        prev_in_ring, TAG_ANY, 0, 0
+                    );
+                }
+                curr_pos = (curr_pos + world.size - 1) % world.size;
+                //pop one result here to keep the result FIFO not full
+                err |= end_move();
+            }
+
+            //pop final two results for reduce-scatter
+            err |= end_move();
+            err |= end_move();
+
+            //next phase: allgather
+            //send to next in ring, from seg_dst_buf_addr where we stored the scattered reduction result
+            start_move(
+                MOVE_IMMEDIATE, MOVE_NONE, MOVE_NONE,
+                pack_flags(NO_COMPRESSION, RES_LOCAL, NO_HOST),
+                0,
+                0,
+                0, arcfg_offset,
+                seg_dst_buf_addr, 0, 0, 0, 0, 0,
+                0, 0, 0, 0
+            );
+            //send: keep all flags except RES_COMPRESSED, which should be replaced by ETH_COMPRESSED
+            //convert RES_HOST flag to OP0_HOST because we're sending from the destination buffer via Op0
+            tmp_compression = (compression & ~RES_COMPRESSED) | ((compression & ETH_COMPRESSED) >> 1);
+            start_move(
+                MOVE_STRIDE, MOVE_NONE, MOVE_IMMEDIATE,
+                pack_flags(tmp_compression, RES_REMOTE, (host & RES_HOST)>>2),
+                0,
+                (next_in_ring == world.size - 1) ? tail_count : bulk_count,
+                comm_offset, arcfg_offset,
+                0, 0, 0, bulk_count * next_in_ring, 0, 0,
+                0, 0, next_in_ring, TAG_ANY
+            );
+
+            err |= end_move();
+            err |= end_move();
+
+            //receive and forward from all other members of the communicator
+            curr_pos = next_in_ring;
+            for (i = 0; i < world.size - 1; i++) {
+                rel_stride = bulk_count * ((curr_pos == 0) ? (world.size - 1) : -1);
+                curr_count = (curr_pos == 0) ? tail_count : bulk_count;
+
+                //we use a blocking move here, because we want to avoid a race condition with the relay below
+                //TODO: avoid this; we either need to solve the RAW dependency in hardware (the generic approach),
+                //or a way to reuse a rx buffer (solves this problem in particular but does not extend to e.g. reduces)
+                //e.g. MOVE_ON_RECV_KEEP which would keep the RX buffer in the pending state
+                tmp_compression = (compression & RES_COMPRESSED) | ((compression & ETH_COMPRESSED) >> 2);
+                err |= move(
+                    MOVE_NONE, MOVE_ON_RECV, MOVE_STRIDE,
+                    pack_flags(tmp_compression, RES_LOCAL, host & RES_HOST),
+                    0,
                     curr_count,
                     comm_offset, arcfg_offset,
-                    0, 0, 0, rel_stride, 0, 0,
-                    prev_in_ring, TAG_ANY, next_in_ring, TAG_ANY
-                );
-            } else {
-                //compression: if ETH_COMPRESSED is set then we receive compressed data over the network,
-                //so we must set OP1_COMPRESSED here. Also keep RES_COMPRESSED and OP0_COMPRESSED the same.
-                tmp_compression = compression | ((compression & ETH_COMPRESSED) >> 2);
-                start_move(
-                    MOVE_STRIDE, MOVE_ON_RECV, MOVE_STRIDE,
-                    pack_flags(tmp_compression, RES_LOCAL, host & (OP0_HOST | RES_HOST)),
-                    func,
-                    curr_count,
-                    comm_offset, arcfg_offset,
-                    0, 0, 0, rel_stride, 0, bulk_count * next_in_ring,
+                    0, 0, 0, 0, 0, rel_stride,
                     prev_in_ring, TAG_ANY, 0, 0
                 );
+                curr_pos = (curr_pos + world.size - 1) % world.size;
+                curr_count = (curr_pos == (world.size - 1)) ? tail_count : bulk_count;
+                if (i < world.size - 2) { //if not the last data, relay to the next in ring
+                    //first prime the address
+                    start_move(
+                        MOVE_NONE, MOVE_IMMEDIATE, MOVE_NONE,
+                        pack_flags(NO_COMPRESSION, RES_REMOTE, NO_HOST),
+                        0,
+                        0,
+                        0, arcfg_offset,
+                        0, seg_dst_buf_addr, 0, 0, 0, 0,
+                        0, 0, 0, 0
+                    );
+                    //send
+                    //we're re-sending from the result, so copy RES_COMPRESSED over OP1_COMPRESSED,
+                    //and ETH_COMPRESSED over RES_COMPRESSED
+                    //we convert RES_HOST flag to OP1_HOST since we're sending from the result buffer via Op1
+                    tmp_compression = ((compression & RES_COMPRESSED) >> 1) | ((compression & ETH_COMPRESSED) >> 1);
+                    start_move(
+                        MOVE_NONE, MOVE_STRIDE, MOVE_IMMEDIATE,
+                        pack_flags(tmp_compression, RES_REMOTE, (host & RES_HOST) >> 1),
+                        0,
+                        curr_count,
+                        comm_offset, arcfg_offset,
+                        0, 0, 0, 0, bulk_count * curr_pos, 0,
+                        0, 0, next_in_ring, TAG_ANY
+                    );
+
+                    err |= end_move();
+                    err |= end_move();
+                }
             }
-            curr_pos = (curr_pos + world.size - 1) % world.size;
-            //pop one result here to keep the result FIFO not full
-            err |= end_move();
+
+            moved_bytes = elems * datatype_nbytes;
+            seg_src_buf_addr += moved_bytes;
+            seg_dst_buf_addr += moved_bytes;
         }
-
-        //pop final two results for reduce-scatter
-        err |= end_move();
-        err |= end_move();
-
-        //next phase: allgather
-        //send to next in ring, from seg_dst_buf_addr where we stored the scattered reduction result
-        start_move(
-            MOVE_IMMEDIATE, MOVE_NONE, MOVE_NONE,
-            pack_flags(NO_COMPRESSION, RES_LOCAL, NO_HOST),
-            0,
-            0,
-            0, arcfg_offset,
-            seg_dst_buf_addr, 0, 0, 0, 0, 0,
-            0, 0, 0, 0
-        );
-        //send: keep all flags except RES_COMPRESSED, which should be replaced by ETH_COMPRESSED
-        //convert RES_HOST flag to OP0_HOST because we're sending from the destination buffer via Op0
-        tmp_compression = (compression & ~RES_COMPRESSED) | ((compression & ETH_COMPRESSED) >> 1);
-        start_move(
-            MOVE_STRIDE, MOVE_NONE, MOVE_IMMEDIATE,
-            pack_flags(tmp_compression, RES_REMOTE, (host & RES_HOST)>>2),
-            0,
-            (next_in_ring == world.size - 1) ? tail_count : bulk_count,
-            comm_offset, arcfg_offset,
-            0, 0, 0, bulk_count * next_in_ring, 0, 0,
-            0, 0, next_in_ring, TAG_ANY
-        );
-
-        err |= end_move();
-        err |= end_move();
-
-        //receive and forward from all other members of the communicator
-        curr_pos = next_in_ring;
-        for (i = 0; i < world.size - 1; i++) {
-            rel_stride = bulk_count * ((curr_pos == 0) ? (world.size - 1) : -1);
-            curr_count = (curr_pos == 0) ? tail_count : bulk_count;
-
-            //we use a blocking move here, because we want to avoid a race condition with the relay below
-            //TODO: avoid this; we either need to solve the RAW dependency in hardware (the generic approach),
-            //or a way to reuse a rx buffer (solves this problem in particular but does not extend to e.g. reduces)
-            //e.g. MOVE_ON_RECV_KEEP which would keep the RX buffer in the pending state
-            tmp_compression = (compression & RES_COMPRESSED) | ((compression & ETH_COMPRESSED) >> 2);
-            err |= move(
-                MOVE_NONE, MOVE_ON_RECV, MOVE_STRIDE,
-                pack_flags(tmp_compression, RES_LOCAL, host & RES_HOST),
-                0,
-                curr_count,
-                comm_offset, arcfg_offset,
-                0, 0, 0, 0, 0, rel_stride,
-                prev_in_ring, TAG_ANY, 0, 0
-            );
-            curr_pos = (curr_pos + world.size - 1) % world.size;
-            curr_count = (curr_pos == (world.size - 1)) ? tail_count : bulk_count;
-            if (i < world.size - 2) { //if not the last data, relay to the next in ring
-                //first prime the address
-                start_move(
-                    MOVE_NONE, MOVE_IMMEDIATE, MOVE_NONE,
-                    pack_flags(NO_COMPRESSION, RES_REMOTE, NO_HOST),
-                    0,
-                    0,
-                    0, arcfg_offset,
-                    0, seg_dst_buf_addr, 0, 0, 0, 0,
-                    0, 0, 0, 0
-                );
-                //send
-                //we're re-sending from the result, so copy RES_COMPRESSED over OP1_COMPRESSED,
-                //and ETH_COMPRESSED over RES_COMPRESSED
-                //we convert RES_HOST flag to OP1_HOST since we're sending from the result buffer via Op1
-                tmp_compression = ((compression & RES_COMPRESSED) >> 1) | ((compression & ETH_COMPRESSED) >> 1);
-                start_move(
-                    MOVE_NONE, MOVE_STRIDE, MOVE_IMMEDIATE,
-                    pack_flags(tmp_compression, RES_REMOTE, (host & RES_HOST) >> 1),
-                    0,
-                    curr_count,
-                    comm_offset, arcfg_offset,
-                    0, 0, 0, 0, bulk_count * curr_pos, 0,
-                    0, 0, next_in_ring, TAG_ANY
-                );
-
-                err |= end_move();
-                err |= end_move();
-            }
-        }
-
-        moved_bytes = elems * Xil_In32(arcfg_offset);
-        seg_src_buf_addr += moved_bytes;
-        seg_dst_buf_addr += moved_bytes;
     }
 
     return err;
@@ -1643,7 +2121,7 @@ int barrier(
             rendezvous_send_addr(i, 0, false, 0, TAG_ANY);
         }
     } else {
-        rendezvous_get_addr(0, &addr, &host, 0, TAG_ANY);
+        while(rendezvous_get_addr(0, &addr, &host, 0, TAG_ANY)== NOT_READY_ERROR);
     }
 
     flush_retries = false;
@@ -1704,11 +2182,22 @@ static inline void wait_for_call(void) {
         }
     } while (invalid);
     new_call = rr_sel;
+    //clear performance counter then start it
+#ifndef MB_FW_EMULATION
+    SET(PERFCTR_CONTROL_REG, PERFCTR_CE_MASK);
+    CLR(PERFCTR_CONTROL_REG, PERFCTR_SCLR_MASK);
+#endif
 }
 
 //signal finish to the host and write ret value in exchange mem
 void finalize_call(unsigned int retval, unsigned int id) {
     Xil_Out32(RETVAL_OFFSET, retval);
+    //stop performance counter, copy its value to exchmem
+#ifndef MB_FW_EMULATION
+    CLR(PERFCTR_CONTROL_REG, PERFCTR_CE_MASK);
+    Xil_Out32(PERFCTR_OFFSET, Xil_In32(PERFCTR_DATA_REG));
+    SET(PERFCTR_CONTROL_REG, PERFCTR_SCLR_MASK);
+#endif
     // Done: Set done and idle
     putd(STS_CALL, id);
 }
@@ -1772,10 +2261,14 @@ void run() {
         //initialize arithmetic/compression config and communicator
         //NOTE: these are global because they're used in a lot of places but don't change during a call
         //TODO: determine if they can remain global in hierarchical collectives
-        if(!comm_cached || (comm != comm_cache_adr)){
-            world = find_comm(comm);
-            comm_cached = true;
-            comm_cache_adr = comm;
+        if(scenario != ACCL_CONFIG && scenario != ACCL_NOP){
+            if(!comm_cached || (comm != comm_cache_adr)){
+                world = find_comm(comm);
+                comm_cached = true;
+                comm_cache_adr = comm;
+            }
+            //get number of bytes of selected datatype
+            datatype_nbytes = Xil_In32(datapath_cfg);
         }
 
         switch (scenario)
@@ -1836,21 +2329,31 @@ void run() {
                         timeout = count;
                         break;
                     case HOUSEKEEP_EAGER_MAX_SIZE:
-                        max_eager_size = count;
-                        break;
-                    case HOUSEKEEP_SET_MAX_SEGMENT_SIZE:
-                        retval = DMA_NOT_EXPECTED_BTT_ERROR;
-                        if(count < DMA_MAX_BTT){
-                            max_segment_size = count;
-                            retval = NO_ERROR;
+                        //get size of RX buffers from the RX buffer spec in memory
+                        eager_rx_buf_size = Xil_In32(RX_BUFFER_MAX_LEN_OFFSET);
+                        if(count < eager_rx_buf_size){
+                            finalize_call(EAGER_THRESHOLD_INVALID);
+                            continue;
                         }
+                        max_eager_size = count;
+
+                        break;
+                    case HOUSEKEEP_RENDEZVOUS_MAX_SIZE:
+                        if(count <= max_eager_size){
+                            finalize_call(RENDEZVOUS_THRESHOLD_INVALID);
+                            continue;
+                        }
+                        max_rendezvous_size = count;
                         break;
                     default:
                         break;
                 }
                 break;
-            default:
+            case ACCL_NOP:
                 retval = NO_ERROR;
+                break;
+            default:
+                retval = COLLECTIVE_NOT_IMPLEMENTED;
                 break;
         }
         if(retval == NOT_READY_ERROR){

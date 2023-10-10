@@ -215,11 +215,14 @@ void controller(Stream<command_word> &cmdin, Stream<command_word> &cmdout,
     addr_1(63,32) = cmdin.Pop().data;
     ap_uint<64> addr_2 = cmdin.Pop().data;
     addr_2(63,32) = cmdin.Pop().data;
+	bool 		ret_ready;
+	ap_uint<32> ret_id;
     //execute host controller
     logger << log_level::verbose << "Controller forwarding call with scenario " << scenario << endl;
     hostctrl(	scenario, count, comm, root_src_dst, function, tag, arithcfg, 
 				compression_flags, stream_flags,
 				addr_0, addr_1, addr_2,
+                0, true, &ret_ready, &ret_id,
 				cmdout, stsin   );
     //signal upstream
     stsout.Push({.data=0, .last=1});

@@ -31,6 +31,10 @@ void hostctrl(	ap_uint<32> scenario,
 				ap_uint<64> addra,
 				ap_uint<64> addrb,
 				ap_uint<64> addrc,
+				ap_uint<32> call_id,
+				bool 		sync,
+				bool 		*ret_ready,
+				ap_uint<32> *ret_id,
 				STREAM<command_word> &cmd,
 				STREAM<command_word> &sts
 ) {
@@ -46,6 +50,10 @@ void hostctrl(	ap_uint<32> scenario,
 #pragma HLS INTERFACE s_axilite port=addra
 #pragma HLS INTERFACE s_axilite port=addrb
 #pragma HLS INTERFACE s_axilite port=addrc
+#pragma HLS INTERFACE s_axilite port=sync
+#pragma HLS INTERFACE s_axilite port=ret_ready
+#pragma HLS INTERFACE s_axilite port=ret_id
+#pragma HLS INTERFACE s_axilite port=call_id
 #pragma HLS INTERFACE axis port=cmd
 #pragma HLS INTERFACE axis port=sts
 #pragma HLS INTERFACE s_axilite port=return
@@ -55,9 +63,15 @@ void hostctrl(	ap_uint<32> scenario,
 		accl.start_call(
 			scenario, len, comm, root_src_dst, function,
 			msg_tag, datapath_cfg, compression_flags, stream_flags,
-			addra, addrb, addrc
+			addra, addrb, addrc, call_id
 		);
 		ap_wait();
-		accl.finalize_call();
+		if(sync || !STREAM_IS_EMPTY(sts)){
+			*ret_id = accl.finalize_call();
+			*ret_ready = true;
+		} else {
+			*ret_id = 0;
+			*ret_ready = false;
+		}
 	}
 }

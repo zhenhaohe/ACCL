@@ -74,6 +74,8 @@ namespace accl_hls {
 #define ACCL_ALLGATHER      9
 #define ACCL_ALLREDUCE      10
 #define ACCL_REDUCE_SCATTER 11
+#define ACCL_BARRIER        12
+#define ACCL_ALLTOALL       13
 
 /**
  * @brief Class encapsulating ACCL command streams
@@ -130,6 +132,7 @@ class ACCLCommand{
          * @param addra Address of first operand, or zero if not in use
          * @param addrb Address of second operand, or zero if not in use
          * @param addrc Address of result, or zero if not in use
+         * @param id Unique numeric identifier for this call
          */
         void start_call(
             ap_uint<32> scenario,
@@ -143,12 +146,16 @@ class ACCLCommand{
             ap_uint<32> stream_flags,
             ap_uint<64> addra,
             ap_uint<64> addrb,
-            ap_uint<64> addrc
+            ap_uint<64> addrc,
+            ap_uint<32> id
         ){
             command_word tmp;
             tmp.keep = 0xf;
             io_section:{
                 #pragma HLS protocol fixed
+                tmp.data=id; tmp.last=0;
+                STREAM_WRITE(cmd, tmp);
+                ap_wait();
                 tmp.data=scenario; tmp.last=0;
                 STREAM_WRITE(cmd, tmp);
                 ap_wait();
@@ -197,12 +204,61 @@ class ACCLCommand{
             }  
         }
 
+/**
+         * @brief Launch an ACCL call (with default ID)
+         * 
+         * @param scenario Indicates type of call (see defines)
+         * @param len Length of buffers involved in call, in elements (not bytes)
+         * @param comm ID of communicator
+         * @param root_src_dst Either root, source or destination rank, depending on scenario
+         * @param function Function ID for reduction-type scenarios
+         * @param msg_tag Message tag
+         * @param datapath_cfg Address of datapath configuration structure
+         * @param compression_flags Compression flags
+         * @param stream_flags Stream flags
+         * @param addra Address of first operand, or zero if not in use
+         * @param addrb Address of second operand, or zero if not in use
+         * @param addrc Address of result, or zero if not in use
+         */
+        void start_call(
+            ap_uint<32> scenario,
+            ap_uint<32> len,
+            ap_uint<32> comm,
+            ap_uint<32> root_src_dst,
+            ap_uint<32> function,
+            ap_uint<32> msg_tag,
+            ap_uint<32> datapath_cfg,
+            ap_uint<32> compression_flags,
+            ap_uint<32> stream_flags,
+            ap_uint<64> addra,
+            ap_uint<64> addrb,
+            ap_uint<64> addrc
+        ){
+            start_call(
+                scenario,
+                len,
+                comm,
+                root_src_dst,
+                function,
+                msg_tag,
+                datapath_cfg,
+                compression_flags,
+                stream_flags,
+                addra,
+                addrb,
+                addrc,
+                0
+            );
+        }
+
         /**
          * @brief Wait for a previously-launched call to finish
          * 
+         * @return Identified of completed call
          */
-        void finalize_call(){
-            STREAM_READ(sts);
+        ap_uint<32> finalize_call(){
+            command_word ret = STREAM_READ(sts);
+            return ret.data;
         }
 
         /**

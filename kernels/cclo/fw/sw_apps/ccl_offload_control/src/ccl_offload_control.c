@@ -1707,15 +1707,15 @@ static inline void wait_for_call(void) {
 }
 
 //signal finish to the host and write ret value in exchange mem
-void finalize_call(unsigned int retval) {
+void finalize_call(unsigned int retval, unsigned int id) {
     Xil_Out32(RETVAL_OFFSET, retval);
     // Done: Set done and idle
-    putd(STS_CALL, retval);
+    putd(STS_CALL, id);
 }
 
 void run() {
     unsigned int retval;
-    unsigned int scenario, count, comm, root_src_dst, function, msg_tag;
+    unsigned int call_id, scenario, count, comm, root_src_dst, function, msg_tag;
     unsigned int datapath_cfg, compression_flags, buftype_flags;
     unsigned int op0_addrl, op0_addrh, op1_addrl, op1_addrh, res_addrl, res_addrh;
     uint64_t op0_addr, op1_addr, res_addr;
@@ -1726,6 +1726,7 @@ void run() {
         wait_for_call();
         if(new_call){
             //read parameters from host command queue
+            call_id             = getd(CMD_CALL);
             scenario            = getd(CMD_CALL);
             count               = getd(CMD_CALL);
             comm                = getd(CMD_CALL);
@@ -1744,6 +1745,7 @@ void run() {
             current_step        = 0;
         } else {
             //read parameters from command retry queue
+            call_id             = getd(CMD_CALL_RETRY);
             scenario            = getd(STS_CALL_RETRY);
             count               = getd(STS_CALL_RETRY);
             comm                = getd(STS_CALL_RETRY);
@@ -1823,7 +1825,7 @@ void run() {
                 {
                     case HOUSEKEEP_SWRST:
                         encore_soft_reset();
-                        finalize_call(retval);
+                        finalize_call(retval, call_id);
                         return;
                     case HOUSEKEEP_PKTEN:
                         start_depacketizer();
@@ -1853,6 +1855,7 @@ void run() {
         }
         if(retval == NOT_READY_ERROR){
             //put the current call in the retry queue
+            putd(CMD_CALL_RETRY,call_id);
             putd(CMD_CALL_RETRY,scenario);
             putd(CMD_CALL_RETRY,count);
             putd(CMD_CALL_RETRY,comm);
@@ -1871,7 +1874,7 @@ void run() {
             cputd(CMD_CALL_RETRY,current_step);
             num_retry_pending++;
         } else {
-            finalize_call(retval);
+            finalize_call(retval, call_id);
         }
     }
 }

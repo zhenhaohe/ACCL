@@ -17,18 +17,23 @@
 
 #include "accl_hls.h"
 
-void hostctrl(	ap_uint<32> scenario,
-				ap_uint<32> len,
-				ap_uint<32> comm,
-				ap_uint<32> root_src_dst,
-				ap_uint<32> function,
-				ap_uint<32> msg_tag,
-				ap_uint<32> datapath_cfg,
-				ap_uint<32> compression_flags,
-				ap_uint<32> stream_flags,
-				ap_uint<64> addra,
-				ap_uint<64> addrb,
-				ap_uint<64> addrc,
-				STREAM<command_word> &cmd,
-				STREAM<command_word> &sts
+void hostctrl(
+	ap_uint<32> scenario,
+	ap_uint<32> len,
+	ap_uint<32> comm,
+	ap_uint<32> root_src_dst,
+	ap_uint<32> function,
+	ap_uint<32> msg_tag,
+	ap_uint<32> datapath_cfg,
+	ap_uint<32> compression_flags,
+	ap_uint<32> stream_flags,
+	ap_uint<64> addra,
+	ap_uint<64> addrb,
+	ap_uint<64> addrc,
+	ap_uint<32> call_id,
+	bool 		sync,
+	bool 		*ret_ready,
+	ap_uint<32> *ret_id,
+	STREAM<command_word> &cmd,
+	STREAM<command_word> &sts
 );

@@ -504,8 +504,9 @@ void test_sendrcv(ACCL::ACCL &accl, options_t &options) {
 		
 		double durationUs = 0.0;
 		double tput = 0.0;
+		accl.barrier();
+		std::cout<<"Pass accl barrier"<<std::endl;
 		auto start = std::chrono::high_resolution_clock::now();
-
 		ACCL::ACCLRequest* req;
 		if (mpi_rank == 0) {
 			// send

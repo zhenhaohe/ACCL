@@ -283,7 +283,33 @@ assign rdma_0_ack.ready = 1'b1;
 //   .probe17(rdma_0_rd_req.data), //96
 //   .probe18(bpss_rd_req.data), //96
 //   .probe19(bpss_wr_req.data), //96
-//   .probe20(rdma_0_sq.data) //512
+//   .probe20(rdma_0_sq.data), //512
+//   .probe21(axis_host_0_src_s.tvalid),
+//   .probe22(axis_host_0_src_s.tready),
+//   .probe23(axis_host_1_src_s.tvalid),
+//   .probe24(axis_host_1_src_s.tready),
+//   .probe25(axis_host_2_src_s.tvalid),
+//   .probe26(axis_host_2_src_s.tready),
+//   .probe27(axis_card_0_src_s.tvalid),
+//   .probe28(axis_card_0_src_s.tready),
+//   .probe29(axis_card_1_src_s.tvalid),
+//   .probe30(axis_card_1_src_s.tready),
+//   .probe31(axis_card_2_src_s.tvalid),
+//   .probe32(axis_card_2_src_s.tready),
+//   .probe33(axis_host_0_sink_s.tvalid),
+//   .probe34(axis_host_0_sink_s.tready),
+//   .probe35(axis_host_1_sink_s.tvalid),
+//   .probe36(axis_host_1_sink_s.tready),
+//   .probe37(axis_host_2_sink_s.tvalid),
+//   .probe38(axis_host_2_sink_s.tready),
+//   .probe39(axis_card_0_sink_s.tvalid),
+//   .probe40(axis_card_0_sink_s.tready),
+//   .probe41(axis_card_1_sink_s.tvalid),
+//   .probe42(axis_card_1_sink_s.tready),
+//   .probe43(axis_card_2_sink_s.tvalid),
+//   .probe44(axis_card_2_sink_s.tready),
+//   .probe45(bpss_rd_done.valid),
+//   .probe46(bpss_wr_done.valid)
 // );
 
 

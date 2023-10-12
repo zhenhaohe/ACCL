@@ -33,38 +33,38 @@ constexpr int targetRegion = 0;
 
 namespace ACCL {
 
-/**
- * Implementation of the request derived class for FPGA devices
- *
- */
-class CoyoteRequest : public BaseRequest {
-private:
-  const size_t OFFSET_HOSTCTRL = 0x2000; 
-  const CCLO::Options &options;
+// /**
+//  * Implementation of the request derived class for FPGA devices
+//  *
+//  */
+// class CoyoteRequest : public BaseRequest {
+// private:
+//   const size_t OFFSET_HOSTCTRL = 0x2000; 
+//   const CCLO::Options &options;
 
-public:
+// public:
 
-  /**
-   * Construct a new FPGA request object
-   *
-   * @param cclo    Opaque reference to the main CCLO object
-   * @param options Options for the associated call
-   */
-  CoyoteRequest(void *cclo, const CCLO::Options &options)
-      : BaseRequest(cclo), options(options) {}
+//   /**
+//    * Construct a new FPGA request object
+//    *
+//    * @param cclo    Opaque reference to the main CCLO object
+//    * @param options Options for the associated call
+//    */
+//   CoyoteRequest(void *cclo, const CCLO::Options &options)
+//       : BaseRequest(cclo), options(options) {}
 
-  /**
-   * Effectively starts the call
-   * 
-   */
-  void start();
+//   /**
+//    * Effectively starts the call
+//    * 
+//    */
+//   void start();
 
-  /**
-   * Waits for call to end
-   * 
-   */
-  void wait_kernel();
-};
+//   /**
+//    * Waits for call to end
+//    * 
+//    */
+//   void wait_kernel();
+// };
 
 /**
  * Implementation of CCLO that uses a CCLO kernel on a FPGA.
@@ -93,12 +93,12 @@ public:
   timeoutStatus wait(ACCLRequest *request,
                 std::chrono::milliseconds timeout) override;
 
-  /**
-   * Internally completes the request.
-   * 
-   * @param request Associated request to be completed
-   */
-  void complete_request(CoyoteRequest *request);
+  // /**
+  //  * Internally completes the request.
+  //  * 
+  //  * @param request Associated request to be completed
+  //  */
+  // void complete_request(CoyoteRequest *request);
 
   addr_t get_base_addr() override {
     return OFFSET_CCLO;
@@ -130,17 +130,18 @@ public:
 
 private:
   const size_t OFFSET_CCLO = 0x0; 
+  const size_t OFFSET_HOSTCTRL = 0x2000; 
 
-  FPGAQueue<CoyoteRequest *> queue;
-  std::unordered_map<ACCLRequest, CoyoteRequest *> request_map;
+  // FPGAQueue<CoyoteRequest *> queue;
+  // std::unordered_map<ACCLRequest, CoyoteRequest *> request_map;
 
-  /**
-   * Starts the execution of the first request in the queue. To keep queue
-   * going, this function is called every time a operation is issue and
-   * everytime an ongoing operation finishes
-   *
-   */
-  void launch_request();
+  // /**
+  //  * Starts the execution of the first request in the queue. To keep queue
+  //  * going, this function is called every time a operation is issue and
+  //  * everytime an ongoing operation finishes
+  //  *
+  //  */
+  // void launch_request();
 
 };
 } // namespace ACCL

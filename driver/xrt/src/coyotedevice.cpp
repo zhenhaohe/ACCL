@@ -22,72 +22,80 @@
 #include <future>
 #include <iomanip>
 
-static void finish_coyote_request(ACCL::CoyoteRequest *req) {
-  req->wait_kernel();
-  ACCL::CoyoteDevice *cclo = reinterpret_cast<ACCL::CoyoteDevice *>(req->cclo());
-  // get ret code before notifying waiting threads
-  req->set_retcode(cclo->read(ACCL::CCLO_ADDR::RETCODE_OFFSET));
-  req->set_duration(cclo->read(ACCL::CCLO_ADDR::PERFCNT_OFFSET));
-  req->set_status(ACCL::operationStatus::COMPLETED);
-  req->notify();
-  cclo->complete_request(req);
-}
+// static void finish_coyote_request(ACCL::CoyoteRequest *req) {
+//   req->wait_kernel();
+//   ACCL::CoyoteDevice *cclo = reinterpret_cast<ACCL::CoyoteDevice *>(req->cclo());
+//   // get ret code before notifying waiting threads
+//   req->set_retcode(cclo->read(ACCL::CCLO_ADDR::RETCODE_OFFSET));
+//   req->set_duration(cclo->read(ACCL::CCLO_ADDR::PERFCNT_OFFSET));
+//   req->set_status(ACCL::operationStatus::COMPLETED);
+//   req->notify();
+//   cclo->complete_request(req);
+// }
 
 namespace ACCL {
 
-void CoyoteRequest::start() {
-  assert(this->get_status() ==  operationStatus::EXECUTING);
+// void CoyoteRequest::start() {
+//   std::cout<<"CoyoteRequest start not needed in Coyote ACCL"<<std::endl;
+//   // assert(this->get_status() ==  operationStatus::EXECUTING);
 
-  int function, arg_id = 0;
+//   // int function, arg_id = 0;
 
-  if (options.scenario == operation::config) {
-    function = static_cast<int>(options.cfg_function);
-  } else {
-    function = static_cast<int>(options.reduce_function);
-  }
-  uint32_t flags = static_cast<uint32_t>(options.host_flags) << 8 | static_cast<uint32_t>(options.stream_flags);
+//   // if (options.scenario == operation::config) {
+//   //   function = static_cast<int>(options.cfg_function);
+//   // } else {
+//   //   function = static_cast<int>(options.reduce_function);
+//   // }
+//   // uint32_t flags = static_cast<uint32_t>(options.host_flags) << 8 | static_cast<uint32_t>(options.stream_flags);
 
-  auto coyote_proc = reinterpret_cast<ACCL::CoyoteDevice *>(cclo())->get_device();
+//   // auto coyote_proc = reinterpret_cast<ACCL::CoyoteDevice *>(cclo())->get_device();
 
-  if (coyote_proc->getCSR((OFFSET_HOSTCTRL + HOSTCTRL_ADDR::AP_CTRL)>>2) && (0x02 == 0)) { // read AP_CTRL and check bit 2 (the done bit)
-    throw std::runtime_error(
-        "Error, collective is already running, wait for previous to complete!");
-  }
+//   // if (coyote_proc->getCSR((OFFSET_HOSTCTRL + HOSTCTRL_ADDR::AP_CTRL)>>2) && (0x02 == 0)) { // read AP_CTRL and check bit 2 (the done bit)
+//   //   throw std::runtime_error(
+//   //       "Error, collective is already running, wait for previous to complete!");
+//   // }
 
-  coyote_proc->setCSR(static_cast<uint32_t>(options.scenario), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::SCEN)>>2);
-  coyote_proc->setCSR(static_cast<uint32_t>(options.count), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::LEN)>>2);
-  coyote_proc->setCSR(static_cast<uint32_t>(options.comm), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::COMM)>>2);
-  coyote_proc->setCSR(static_cast<uint32_t>(options.root_src_dst), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ROOT_SRC_DST)>>2);
-  coyote_proc->setCSR(static_cast<uint32_t>(function), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::FUNCTION_R)>>2);
-  coyote_proc->setCSR(static_cast<uint32_t>(options.tag), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::MSG_TAG)>>2);
-  coyote_proc->setCSR(static_cast<uint32_t>(options.arithcfg_addr), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::DATAPATH_CFG)>>2);
-  coyote_proc->setCSR(static_cast<uint32_t>(options.compression_flags), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::COMPRESSION_FLAGS)>>2);
-  coyote_proc->setCSR(static_cast<uint32_t>(flags), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::STREAM_FLAGS)>>2);
-  addr_t addr_a = options.addr_0->address();
-  coyote_proc->setCSR(static_cast<uint32_t>(addr_a), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRA_0)>>2);
-  coyote_proc->setCSR(static_cast<uint32_t>(addr_a >> 32), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRA_1)>>2);
-  addr_t addr_b = options.addr_1->address();
-  coyote_proc->setCSR(static_cast<uint32_t>(addr_b), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRB_0)>>2);
-  coyote_proc->setCSR(static_cast<uint32_t>(addr_b >> 32), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRB_1)>>2);
-  addr_t addr_c = options.addr_2->address();
-  coyote_proc->setCSR(static_cast<uint32_t>(addr_c), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRC_0)>>2);
-  coyote_proc->setCSR(static_cast<uint32_t>(addr_c >> 32), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRC_1)>>2);
+//   // coyote_proc->setCSR(static_cast<uint32_t>(options.scenario), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::SCEN)>>2);
+//   // coyote_proc->setCSR(static_cast<uint32_t>(options.count), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::LEN)>>2);
+//   // coyote_proc->setCSR(static_cast<uint32_t>(options.comm), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::COMM)>>2);
+//   // coyote_proc->setCSR(static_cast<uint32_t>(options.root_src_dst), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ROOT_SRC_DST)>>2);
+//   // coyote_proc->setCSR(static_cast<uint32_t>(function), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::FUNCTION_R)>>2);
+//   // coyote_proc->setCSR(static_cast<uint32_t>(options.tag), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::MSG_TAG)>>2);
+//   // coyote_proc->setCSR(static_cast<uint32_t>(options.arithcfg_addr), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::DATAPATH_CFG)>>2);
+//   // coyote_proc->setCSR(static_cast<uint32_t>(options.compression_flags), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::COMPRESSION_FLAGS)>>2);
+//   // coyote_proc->setCSR(static_cast<uint32_t>(flags), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::STREAM_FLAGS)>>2);
+//   // addr_t addr_a = options.addr_0->address();
+//   // coyote_proc->setCSR(static_cast<uint32_t>(addr_a), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRA_0)>>2);
+//   // coyote_proc->setCSR(static_cast<uint32_t>(addr_a >> 32), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRA_1)>>2);
+//   // addr_t addr_b = options.addr_1->address();
+//   // coyote_proc->setCSR(static_cast<uint32_t>(addr_b), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRB_0)>>2);
+//   // coyote_proc->setCSR(static_cast<uint32_t>(addr_b >> 32), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRB_1)>>2);
+//   // addr_t addr_c = options.addr_2->address();
+//   // coyote_proc->setCSR(static_cast<uint32_t>(addr_c), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRC_0)>>2);
+//   // coyote_proc->setCSR(static_cast<uint32_t>(addr_c >> 32), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRC_1)>>2);
 
-  auto f = std::async(std::launch::async, finish_coyote_request, this);
+//   // auto f = std::async(std::launch::async, finish_coyote_request, this);
 
-  // start the kernel
-  coyote_proc->setCSR(0x1U, (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::AP_CTRL)>>2);
+//   // // start the kernel
+//   // coyote_proc->setCSR(0x1U, (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::AP_CTRL)>>2);
 
-}
+// }
 
-void CoyoteRequest::wait_kernel() {
-  auto coyote_proc = reinterpret_cast<ACCL::CoyoteDevice *>(cclo())->get_device();
-  uint32_t is_done = 0;
-  while (!is_done) {
-    uint32_t regi = coyote_proc->getCSR((OFFSET_HOSTCTRL + HOSTCTRL_ADDR::AP_CTRL)>>2);
-    is_done = (regi >> 1) & 0x1; // get bit 1 of AP_CTRL register
-  }
-}
+// void CoyoteRequest::wait_kernel() {
+//   std::cout<<"CoyoteRequest wait_kernel not needed in Coyote ACCL"<<std::endl;
+//   // auto coyote_proc = reinterpret_cast<ACCL::CoyoteDevice *>(cclo())->get_device();
+//   // uint32_t is_done = 0;
+//   // double durationUs = 0.0;
+// 	// auto start = std::chrono::high_resolution_clock::now();
+//   // while (!is_done) {
+//   //   uint32_t regi = coyote_proc->getCSR((OFFSET_HOSTCTRL + HOSTCTRL_ADDR::AP_CTRL)>>2);
+//   //   is_done = (regi >> 1) & 0x1; // get bit 1 of AP_CTRL register
+//   //   auto end = std::chrono::high_resolution_clock::now();
+// 	// 	durationUs = (std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count() / 1000.0);
+//   //   if (durationUs > 500000.0)
+//   //     break;
+//   // }
+// }
 
 CoyoteDevice::CoyoteDevice(): num_qp(0) {
   this->coyote_proc = new fpga::cProcess(targetRegion, getpid());
@@ -123,40 +131,79 @@ CoyoteDevice::CoyoteDevice(unsigned int num_qp): num_qp(num_qp) {
 }
 
 ACCLRequest *CoyoteDevice::start(const Options &options) {
-  ACCLRequest *request = new ACCLRequest;
+  int function, arg_id = 0;
 
-  if (options.waitfor.size() != 0) {
-    throw std::runtime_error("CoyoteDevice does not support chaining");
+  if (options.scenario == operation::config) {
+    function = static_cast<int>(options.cfg_function);
+  } else {
+    function = static_cast<int>(options.reduce_function);
+  }
+  uint32_t flags = static_cast<uint32_t>(options.host_flags) << 8 | static_cast<uint32_t>(options.stream_flags);
+
+  if (coyote_proc->getCSR((OFFSET_HOSTCTRL + HOSTCTRL_ADDR::AP_CTRL)>>2) && (0x02 == 0)) { // read AP_CTRL and check bit 2 (the done bit)
+    throw std::runtime_error(
+        "Error, collective is already running, wait for previous to complete!");
   }
 
-  CoyoteRequest *fpga_handle =
-      new CoyoteRequest(reinterpret_cast<void *>(this), options);
+  coyote_proc->setCSR(static_cast<uint32_t>(options.scenario), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::SCEN)>>2);
+  coyote_proc->setCSR(static_cast<uint32_t>(options.count), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::LEN)>>2);
+  coyote_proc->setCSR(static_cast<uint32_t>(options.comm), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::COMM)>>2);
+  coyote_proc->setCSR(static_cast<uint32_t>(options.root_src_dst), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ROOT_SRC_DST)>>2);
+  coyote_proc->setCSR(static_cast<uint32_t>(function), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::FUNCTION_R)>>2);
+  coyote_proc->setCSR(static_cast<uint32_t>(options.tag), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::MSG_TAG)>>2);
+  coyote_proc->setCSR(static_cast<uint32_t>(options.arithcfg_addr), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::DATAPATH_CFG)>>2);
+  coyote_proc->setCSR(static_cast<uint32_t>(options.compression_flags), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::COMPRESSION_FLAGS)>>2);
+  coyote_proc->setCSR(static_cast<uint32_t>(flags), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::STREAM_FLAGS)>>2);
+  addr_t addr_a = options.addr_0->address();
+  coyote_proc->setCSR(static_cast<uint32_t>(addr_a), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRA_0)>>2);
+  coyote_proc->setCSR(static_cast<uint32_t>(addr_a >> 32), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRA_1)>>2);
+  addr_t addr_b = options.addr_1->address();
+  coyote_proc->setCSR(static_cast<uint32_t>(addr_b), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRB_0)>>2);
+  coyote_proc->setCSR(static_cast<uint32_t>(addr_b >> 32), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRB_1)>>2);
+  addr_t addr_c = options.addr_2->address();
+  coyote_proc->setCSR(static_cast<uint32_t>(addr_c), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRC_0)>>2);
+  coyote_proc->setCSR(static_cast<uint32_t>(addr_c >> 32), (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::ADDRC_1)>>2);
 
-  *request = queue.push(fpga_handle);
-  fpga_handle->set_status(operationStatus::QUEUED);
+  // start the kernel
+  coyote_proc->setCSR(0x1U, (OFFSET_HOSTCTRL + HOSTCTRL_ADDR::AP_CTRL)>>2);
 
-  request_map.emplace(std::make_pair(*request, fpga_handle));
-
-  launch_request();
-
-  return request;
+  return nullptr;
 
 }
 
 void CoyoteDevice::wait(ACCLRequest *request) { 
-  auto fpga_handle = request_map.find(*request);
-  if (fpga_handle != request_map.end())
-    fpga_handle->second->wait(); 
+  uint32_t is_done = 0;
+  uint32_t last = 0xffffffff;
+  while (!is_done) {
+    uint32_t regi = coyote_proc->getCSR((OFFSET_HOSTCTRL + HOSTCTRL_ADDR::AP_CTRL)>>2);
+    if (last != regi) {
+      // std::cerr << "Read from AP_CTRL: " << std::setbase(16) << regi << std::setbase(10) << std::endl;
+      last = regi;
+    }
+    is_done = (regi >> 1) & 0x1;
+  }
 }
 
 timeoutStatus CoyoteDevice::wait(ACCLRequest *request,
                                std::chrono::milliseconds timeout) {
-  auto fpga_handle = request_map.find(*request);
+  uint32_t is_done = 0;
+  uint32_t last = 0xffffffff;
+  auto start = std::chrono::high_resolution_clock::now();
+  while (!is_done) {
+    uint32_t regi = coyote_proc->getCSR((OFFSET_HOSTCTRL + HOSTCTRL_ADDR::AP_CTRL)>>2);
+    if (last != regi) {
+      // std::cerr << "Read from AP_CTRL: " << std::setbase(16) << regi << std::setbase(10) << std::endl;
+      last = regi;
+    }
+    is_done = (regi >> 1) & 0x1;
+    auto end = std::chrono::high_resolution_clock::now();
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(end-start) > timeout){
+        std::cout<<"CoyoteDevice Wait Time Out"<<std::endl;
+        break;
+    } 
+  }
 
-  if (fpga_handle == request_map.end() || fpga_handle->second->wait(timeout))
-    return timeoutStatus::no_timeout;
-
-  return timeoutStatus::timeout;
+  return timeoutStatus::no_timeout;
 }
 
 CCLO::deviceType CoyoteDevice::get_device_type()
@@ -185,39 +232,32 @@ void CoyoteDevice::printDebug(){
 }
 
 bool CoyoteDevice::test(ACCLRequest *request) {
-  auto fpga_handle = request_map.find(*request);
+  std::cout<<"CoyoteDevice test not needed in Coyote ACCL"<<std::endl;
+  return false;
+  // auto fpga_handle = request_map.find(*request);
 
-  if (fpga_handle == request_map.end())
-    return true;
+  // if (fpga_handle == request_map.end())
+  //   return true;
 
-  return fpga_handle->second->get_status() == operationStatus::COMPLETED;
+  // return fpga_handle->second->get_status() == operationStatus::COMPLETED;
 }
 
 uint64_t CoyoteDevice::get_duration(ACCLRequest *request) {  
-  auto handle = request_map.find(*request);
-
-  if (handle == request_map.end())
-    return 0;
-
-  return handle->second->get_duration() * 4;
+  return (read(CCLO_ADDR::PERFCNT_OFFSET) * 4);
 }
 
 void CoyoteDevice::free_request(ACCLRequest *request) {
-  auto fpga_handle = request_map.find(*request);
+  std::cout<<"CoyoteDevice free_request not needed in Coyote ACCL"<<std::endl;
+  // auto fpga_handle = request_map.find(*request);
 
-  if (fpga_handle != request_map.end()) {
-    delete fpga_handle->second;
-    request_map.erase(fpga_handle);
-  }
+  // if (fpga_handle != request_map.end()) {
+  //   delete fpga_handle->second;
+  //   request_map.erase(fpga_handle);
+  // }
 }
 
 val_t CoyoteDevice::get_retcode(ACCLRequest *request) {
-  auto fpga_handle = request_map.find(*request);
-
-  if (fpga_handle != request_map.end())
-    return 0;
-  
-  return fpga_handle->second->get_retcode();
+  return read(CCLO_ADDR::RETCODE_OFFSET);
 }
 
 ACCLRequest *CoyoteDevice::call(const Options &options) {
@@ -238,21 +278,23 @@ void CoyoteDevice::write(addr_t offset, val_t val) {
   coyote_proc->setCSR(val, (OFFSET_CCLO + offset)>>2);
 }
 
-void CoyoteDevice::launch_request() {
-  // This guarantees permission to only one thread trying to start an operation
-  if (queue.run()) {
-    CoyoteRequest *req = queue.front();
-    assert(req->get_status() == operationStatus::QUEUED);
-    req->set_status(operationStatus::EXECUTING);
-    req->start();
-  }
-}
+// void CoyoteDevice::launch_request() {
+//   std::cout<<"CoyoteDevice launch_request not needed in Coyote ACCL"<<std::endl;
+//   // // This guarantees permission to only one thread trying to start an operation
+//   // if (queue.run()) {
+//   //   CoyoteRequest *req = queue.front();
+//   //   assert(req->get_status() == operationStatus::QUEUED);
+//   //   req->set_status(operationStatus::EXECUTING);
+//   //   req->start();
+//   // }
+// }
 
-void CoyoteDevice::complete_request(CoyoteRequest *request) {
-  if (request->get_status() == operationStatus::COMPLETED) {
-    queue.pop();
-    launch_request();
-  }
-}
+// void CoyoteDevice::complete_request(CoyoteRequest *request) {
+//   std::cout<<"CoyoteDevice complete_request not needed in Coyote ACCL"<<std::endl;
+//   // if (request->get_status() == operationStatus::COMPLETED) {
+//   //   queue.pop();
+//   //   launch_request();
+//   // }
+// }
 
 } // namespace ACCL

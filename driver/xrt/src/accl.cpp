@@ -967,6 +967,66 @@ ACCLRequest *ACCL::reduce_scatter(BaseBuffer &sendbuf,
   return nullptr;
 }
 
+ACCLRequest *ACCL::alltoall(BaseBuffer &sendbuf, BaseBuffer &recvbuf, unsigned int count,
+                            communicatorId comm_id, bool from_fpga, bool to_fpga,
+                            dataType compress_dtype, bool run_async, std::vector<ACCLRequest *> waitfor){
+  CCLO::Options options{};
+
+  unsigned count_bytes = count * (dataTypeSize.at(sendbuf.type()) / 8);
+
+  const Communicator &communicator = communicators[comm_id];
+
+  if (to_fpga == false && run_async == true) {
+    std::cerr << "ACCL: async run returns data on FPGA, user must "
+                 "sync_from_device() after waiting"
+              << std::endl;
+  }
+
+  if (count == 0) {
+    std::cerr << "ACCL: zero size buffer" << std::endl;
+    return nullptr;
+  }
+
+  if (ignore_safety_checks == false &&
+      (count + eager_rx_buffer_size - 1) / eager_rx_buffer_size *
+              communicator.get_ranks()->size() >
+          eager_rx_buffers.size()) {
+    std::cerr << "ACCL: gather can't be executed safely with this number of "
+                 "spare buffers"
+              << std::endl;
+  }
+
+  if (from_fpga == false) {
+    auto slice = sendbuf.slice(0, count * communicator.get_ranks()->size());
+    slice->sync_to_device();
+  }
+
+  options.scenario = operation::alltoall;
+  options.comm = communicator.communicators_addr();
+  options.addr_0 = &sendbuf;
+  options.addr_1 = &recvbuf; // recvbuf is used with dm1 rd, needs to pass host infomation
+  options.addr_2 = &recvbuf;
+  options.count = count;
+  options.compress_dtype = compress_dtype;
+  options.waitfor = waitfor;
+  ACCLRequest *handle = call_async(options);
+
+  if (run_async) {
+    return handle;
+  } else {
+    wait(handle);
+    if (to_fpga == false) {
+      auto slice = recvbuf.slice(0, count * communicator.get_ranks()->size());
+      slice->sync_from_device();
+    }
+    check_return_value("alltoall", handle);
+  }
+
+  return nullptr;
+
+}
+
+
 void ACCL::barrier(communicatorId comm_id,
                    std::vector<ACCLRequest *> waitfor) {
   CCLO::Options options{};
@@ -1217,6 +1277,11 @@ void ACCL::setup_rendezvous_spare_buffers(addr_t rndzv_spare_buf_size, const std
 }
 
 void ACCL::configure_tuning_parameters(){
+  //tune gather to reduce fan-in of flat tree above certain message sizes
+  cclo->write(CCLO_ADDR::GATHER_FLAT_TREE_MAX_FANIN_OFFSET, 2);
+  cclo->write(CCLO_ADDR::GATHER_FLAT_TREE_MAX_COUNT_OFFSET, 32*1024);
+  //tune bcast to execute flat tree up to 3 ranks
+  cclo->write(CCLO_ADDR::BCAST_FLAT_TREE_MAX_RANKS_OFFSET, 3);
   //tune reduce to execute flat tree up to 8 ranks or up to 32KB
   unsigned int max_reduce_flat_tree_size = 8;
   cclo->write(CCLO_ADDR::REDUCE_FLAT_TREE_MAX_RANKS_OFFSET, max_reduce_flat_tree_size);

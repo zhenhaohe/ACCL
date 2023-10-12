@@ -146,6 +146,9 @@ namespace CCLO_ADDR {
   constexpr auto const SPARE1_OFFSET          = 0x1FD8;
   constexpr auto const REDUCE_FLAT_TREE_MAX_COUNT_OFFSET = 0x1FD4;
   constexpr auto const REDUCE_FLAT_TREE_MAX_RANKS_OFFSET = 0x1FD0;
+  constexpr auto const BCAST_FLAT_TREE_MAX_RANKS_OFFSET = 0x1FCC;
+  constexpr auto const GATHER_FLAT_TREE_MAX_COUNT_OFFSET = 0x1FC8;
+  constexpr auto const GATHER_FLAT_TREE_MAX_FANIN_OFFSET = 0x1FC4;
   constexpr auto const EGR_RX_BUF_SIZE_OFFSET = 0x4;
   constexpr auto const NUM_EGR_RX_BUFS_OFFSET = 0x0;
 }
@@ -184,7 +187,7 @@ enum class operation : int {
   reduce_scatter = 11,  /**< Perform reduce operator on remote FPGA buffers
                              and scatter to all ranks */
   barrier = 12,         /**< barrier kernel */
-  all_to_all = 13,      /**< All-to-all kernel */
+  alltoall = 13,        /**< All-to-all kernel */
   nop = 255             /**< NOP operation */
 };
 

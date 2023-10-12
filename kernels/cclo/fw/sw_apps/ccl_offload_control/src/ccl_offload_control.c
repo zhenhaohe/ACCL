@@ -812,7 +812,7 @@ int broadcast(  unsigned int count,
         bool dst_host = ((host & RES_HOST) != 0);
         bool src_host = ((host & OP0_HOST) != 0);
 
-        if(world.size > 3){
+        if(world.size > Xil_In32(BCAST_FLAT_TREE_MAX_RANKS_OFFSET)){
             //binary tree broadcast
             //we double the number of broadcasting nodes in each round until we've broadcast to every rank
             //starting broadcast is from root to the rank with the index equal to the largest power of 2
@@ -1145,50 +1145,43 @@ int gather( unsigned int count,
         int status;
         uint64_t buf_addr;
         if(root_rank == world.local_rank){
-            uint32_t src_rank;
             dst_host = (host & RES_HOST) != 0;
-            if(current_step == 0){
-                //start copy to ourselves while we're sending addresses
-                buf_addr = dst_buf_addr + root_rank*bytes_count;
-                start_move(
-                    MOVE_IMMEDIATE,
-                    MOVE_NONE,
-                    MOVE_IMMEDIATE,
-                    pack_flags(compression, RES_LOCAL, host),
-                    0, count, comm_offset, arcfg_offset, 
-                    src_buf_addr, 0, buf_addr, 0, 0, 0,
-                    0, 0, 0, TAG_ANY
-                );
-                //send addresses
-                for(src_rank=0; src_rank < world.size; src_rank++){
-                    //skip sending address for ourselves
+            //start copy to ourselves while we're sending addresses
+            buf_addr = dst_buf_addr + root_rank*bytes_count;
+            start_move(
+                MOVE_IMMEDIATE,
+                MOVE_NONE,
+                MOVE_IMMEDIATE,
+                pack_flags(compression, RES_LOCAL, host),
+                0, count, comm_offset, arcfg_offset, 
+                src_buf_addr, 0, buf_addr, 0, 0, 0,
+                0, 0, 0, TAG_ANY
+            );
+            //send addresses
+            unsigned int num_pending = 0, num_initiated = 0, num_completed = 0, src_rank=0;
+            unsigned int max_fanin = (bytes_count > Xil_In32(GATHER_FLAT_TREE_MAX_COUNT_OFFSET)) ? Xil_In32(GATHER_FLAT_TREE_MAX_FANIN_OFFSET) : world.size-1;
+            while(num_completed < world.size-1){
+                if(num_initiated < world.size-1){
                     if(src_rank == world.local_rank){
-                        continue;
+                        src_rank++;
+                    } else while(num_pending < max_fanin) {
+                        buf_addr = dst_buf_addr + src_rank*bytes_count;
+                        rendezvous_send_addr(src_rank, buf_addr, dst_host, count, TAG_ANY);
+                        num_initiated++;
+                        num_pending++;
+                        src_rank++;      
                     }
-                    //compute address (striding doesnt work here because order of sends is random)
-                    buf_addr = dst_buf_addr + src_rank*bytes_count;
-                    rendezvous_send_addr(src_rank, buf_addr, dst_host, count, TAG_ANY);
                 }
-                //finalize copy to ourselves
-                err |= end_move();
-                current_step++;
+                if(num_pending > 0){
+                    unsigned int dummy_rank;
+                    bool dummy_host;
+                    while(rendezvous_get_any_completion(&dummy_rank, &buf_addr, &dummy_host, bytes_count, TAG_ANY) == NOT_READY_ERROR);
+                    num_pending--;
+                    num_completed++;
+                }
             }
-            //wait for completions
-            while(current_step < world.size+1){
-                src_rank = current_step - 1;
-                //skip completion for ourselves
-                if(src_rank == world.local_rank){
-                    current_step++;
-                    continue;
-                }
-                buf_addr = dst_buf_addr + src_rank*bytes_count;
-                status = rendezvous_get_completion(src_rank, buf_addr, dst_host, count, TAG_ANY);
-                if(status == NOT_READY_ERROR){
-                    //if err was NO_ERROR, we'll retry, otherwise give up
-                    return (err | status);
-                }
-                current_step++;
-            }
+            //finalize copy to ourselves
+            err |= end_move();
             return err;
         } else {
             status = rendezvous_get_addr(root_rank, &buf_addr, &dst_host, count, TAG_ANY);
@@ -2080,11 +2073,7 @@ int allreduce(
     return err;
 }
 
-//barrier: swing a minimal packet around the ring then return
-//Ideally count would be  computed such that the message is 64B; this is
-//because using packets of size multiples of 64 keeps memory
-//accesses in the TCP stack aligned (so 1B would be slower than 64B)
-//requires a buffer from which we pull the 64B
+//barrier using the rendezvous notification mechanism
 int barrier(
     uint64_t src_buf_addr,
     unsigned int comm_offset,
@@ -2096,7 +2085,7 @@ int barrier(
     int err = NO_ERROR;
 
     if(world.size == 1){
-        //corner-case copy for when running a single-node barrier
+        //corner-case single-node barrier
         return NO_ERROR;
     }
 
@@ -2130,8 +2119,101 @@ int barrier(
 }
 
 //placeholder for all-to-all collective
-int all_to_all(){
-    return NO_ERROR;
+int all_to_all(
+    unsigned int count,
+    uint64_t src_buf_addr,
+    uint64_t dst_buf_addr,
+    unsigned int comm_offset,
+    unsigned int arcfg_offset,
+    unsigned int compression,
+    unsigned int buftype
+){
+    unsigned int stream = buftype & 0xff;
+    unsigned int host = (buftype >> 8) & 0xff;
+    int err = NO_ERROR;
+    unsigned int bytes_count = datatype_nbytes*count;
+
+    if(world.size == 1){
+        //corner-case single-node alltoall
+        return copy(count, src_buf_addr, dst_buf_addr, arcfg_offset, compression, stream);
+    } else if(/*(bytes_count > max_eager_size) && */(compression == NO_COMPRESSION) && (stream == NO_STREAM)){
+        //alltoall via simultaneous broadcast
+        //since in alltoall each endpoint must receive P-1 messages (where P is the world size)
+        //then the minimum time required to complete the alltoall is (P-1)(latency+M/bandwidth)
+        //therefore alltoall is linear in P and M, regardless of our broadcast implementation
+        //therefore, we use the out-of-order flat tree implementation for broadcast
+        //but for performance we fuse one locally-rooted broadcast with P-1 locally receiving broadcasts
+        //NOTE: while this flat tree implementation has better tolerance for rank skews, it
+        //also has less control over congestion, as the logical topology allows fanin > 1
+
+        //get remote address
+        //if root, wait for addresses then send
+        unsigned int pending_moves = 0;
+        uint64_t dst_addr;
+        bool dst_host;
+        unsigned int dst_rank;
+        int i;
+        bool res_is_host = ((host & RES_HOST) != 0);
+
+        //start local copy of our source data to the destination buffer
+        start_move(
+            MOVE_IMMEDIATE,
+            MOVE_NONE,
+            MOVE_IMMEDIATE,
+            pack_flags(NO_COMPRESSION, RES_LOCAL, host),
+            0, count, comm_offset, arcfg_offset, 
+            src_buf_addr + world.local_rank*bytes_count, 0, dst_buf_addr + world.local_rank*bytes_count, 0, 0, 0,
+            0, 0, 0, TAG_ANY
+        );
+        pending_moves++;
+
+        //send our addresses to peers while copy is happening
+        for(i=0; i<world.size; i++){
+            if(i != world.local_rank){
+                rendezvous_send_addr(i, dst_buf_addr+i*bytes_count, res_is_host, count, TAG_ANY);
+            }
+        }
+
+        //send to peers as we get their addresses
+        for(i=0; i<(world.size-1); i++){
+            while(rendezvous_get_any_addr(&dst_rank, &dst_addr, &dst_host, count, TAG_ANY) == NOT_READY_ERROR);
+            if(dst_host){
+                host |= RES_HOST;
+            }
+            //do a RDMA write to the remote address 
+            start_move(
+                MOVE_IMMEDIATE,
+                MOVE_NONE,
+                MOVE_IMMEDIATE,
+                pack_flags_rendezvous(host),
+                0, count, comm_offset, arcfg_offset, 
+                src_buf_addr + dst_rank*bytes_count, 0, dst_addr, 0, 0, 0,
+                0, 0, dst_rank, TAG_ANY
+            );
+            pending_moves++;
+            if(pending_moves > 2){
+                err |= end_move();
+                pending_moves--;
+            }
+        }
+
+        //get completions as they come
+        for(i=0; i<(world.size-1); i++){
+            while(rendezvous_get_any_completion(&dst_rank, &dst_addr, &res_is_host, bytes_count, TAG_ANY) == NOT_READY_ERROR);
+        }
+
+        //make sure all RDMA writes have finished and return
+        while(pending_moves > 0){
+            err |= end_move();
+            pending_moves--;
+        }
+        return err;
+
+    } else {
+        //TODO
+        return COLLECTIVE_NOT_IMPLEMENTED;
+    }
+
 }
 
 
@@ -2308,7 +2390,7 @@ void run() {
                 retval = barrier(op0_addr, comm, datapath_cfg);
                 break;
             case ACCL_ALLTOALL:
-                retval = all_to_all();
+                retval = all_to_all(count, op0_addr, res_addr, comm, datapath_cfg, compression_flags, buftype_flags);
                 break;
             case ACCL_CONFIG:
                 retval = 0;

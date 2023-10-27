@@ -112,6 +112,7 @@ struct timestamp_t
 #define ACCL_REDUCE_SCATTER 11
 #define ACCL_BARRIER 12
 #define ACCL_ALLTOALL 13
+#define ACCL_NOP 14
 
 // ACCL_CONFIG SUBFUNCTIONS
 #define HOUSEKEEP_SWRST 0
@@ -778,10 +779,10 @@ void test_gather(ACCL::ACCL &accl, options_t &options, int root) {
 					float res = res_buf.get()->buffer()[j*count+i];
 					float ref = j*count+i;
 					if (res != ref) {
-						std::cout << std::to_string(i + 1) + "th item is incorrect! (" +
-										std::to_string(res) + " != " + std::to_string(ref) +
-										")"
-								<< std::endl;
+						// std::cout << std::to_string(i + 1) + "th item is incorrect! (" +
+						// 				std::to_string(res) + " != " + std::to_string(ref) +
+						// 				")"
+						// 		<< std::endl;
 						errors += 1;
 					}
 				}
@@ -857,7 +858,7 @@ void test_allgather(ACCL::ACCL &accl, options_t &options) {
 				float res = res_buf.get()->buffer()[j*count+i];
 				float ref = j*count+i;
 				if (res != ref) {
-					std::cout << std::to_string(i + 1) + "th item is incorrect! (" +
+					std::cout << std::to_string(j*count+i+1) + "th item is incorrect! (" +
 									std::to_string(res) + " != " + std::to_string(ref) +
 									")"
 							<< std::endl;
@@ -934,19 +935,19 @@ void test_reduce(ACCL::ACCL &accl, options_t &options, int root,
 			float ref = i * mpi_size;
 
 			if (res != ref) {
-				std::cout << std::to_string(i + 1) + "th item is incorrect! (" +
-				                 std::to_string(res) + " != " + std::to_string(ref) +
-				                 ")"
-				          << std::endl;
+				// std::cout << std::to_string(i + 1) + "th item is incorrect! (" +
+				//                  std::to_string(res) + " != " + std::to_string(ref) +
+				//                  ")"
+				//           << std::endl;
 				errors += 1;
 			}
 			}
 
 			if (errors > 0) {
-			std::cout << std::to_string(errors) + " errors!" << std::endl;
-			failed_tests++;
+				std::cout << std::to_string(errors) + " errors!" << std::endl;
+				failed_tests++;
 			} else {
-			std::cout << "Test is successful!" << std::endl;
+				std::cout << "Test is successful!" << std::endl;
 			}
 		}
 	}
@@ -1027,6 +1028,93 @@ void test_allreduce(ACCL::ACCL &accl, options_t &options,
 	res_buf->free_buffer();
 
 }
+
+
+void test_alltoall(ACCL::ACCL &accl, options_t &options) {
+	std::cout << "Start all-to-all test..." << std::endl;
+	unsigned int count = options.count;
+
+	if(options.protoc == 0){
+		std::cout<<"all-to-all eager proctocol not implemented, exiting..."<<std::endl;
+		return;
+	}
+
+	if (options.count*mpi_size*sizeof(dataType::int32) > options.rxbuf_size){
+		std::cout<<"experiment size larger than buffer size, exiting..."<<std::endl;
+		return;
+	}
+
+	auto op_buf = accl.create_coyotebuffer<float>(count * mpi_size, dataType::float32);
+	auto res_buf = accl.create_coyotebuffer<float>(count * mpi_size, dataType::float32);
+	
+	for (int n = 0; n < options.nruns; n++)
+	{
+		std::cout << "Repetition " <<n<< std::endl<<std::flush;
+
+		for (int i = 0; i < count * mpi_size; i++) op_buf.get()->buffer()[i] = count * mpi_size * mpi_rank + i;
+		for (int i = 0; i < count * mpi_size; i++) res_buf.get()->buffer()[i] = 0;
+
+		if (options.host == 0){ op_buf->sync_to_device(); }
+		if (options.host == 0){ res_buf->sync_to_device(); }
+
+		test_debug("All-to-all data...", options);
+
+		MPI_Barrier(MPI_COMM_WORLD);
+		double durationUs = 0.0;
+		accl.barrier();
+		std::cout<<"Pass accl barrier"<<std::endl;
+		auto start = std::chrono::high_resolution_clock::now();
+		ACCL::ACCLRequest* req = accl.alltoall(*op_buf, *res_buf, count, GLOBAL_COMM, true, true, dataType::none, true);
+		accl.wait(req, 1000ms);
+		auto end = std::chrono::high_resolution_clock::now();
+		durationUs = (std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count() / 1000.0);
+		std::cout<<"host measured durationUs:"<<durationUs<<std::endl;
+
+		durationUs = (double)accl.get_duration(req)/1000.0;
+		if(durationUs > 1.0){
+			accl_log(mpi_rank, format_log("alltoall", options, durationUs, 0));
+		}
+
+		std::this_thread::sleep_for(10ms);
+
+		if (options.host == 0){ op_buf->sync_from_device(); }
+		if (options.host == 0){ res_buf->sync_from_device(); }
+
+		int errors = 0;
+		for (unsigned int j = 0; j < mpi_size; ++j) {
+			for (size_t i = 0; i < count; i++)
+			{
+				float res = res_buf.get()->buffer()[j*count+i];
+				float ref = j*mpi_size*count + mpi_rank*count+i;
+				if (res != ref) {
+					std::cout << std::to_string(j*count+i+1) + "th item is incorrect! (" +
+									std::to_string(res) + " != " + std::to_string(ref) +
+									")"
+							<< std::endl;
+					errors += 1;
+				} 
+				// else {
+				// 	std::cout << std::to_string(j*count+i+1) + "th item is correct! (" +
+				// 					std::to_string(res) + " == " + std::to_string(ref) +
+				// 					")"
+				// 			<< std::endl;
+				// }
+			}
+		}
+
+		if (errors > 0) {
+			std::cout << std::to_string(errors) + " errors!" << std::endl;
+			failed_tests++;
+		} else {
+			std::cout << "Test is successful!" << std::endl;
+		}
+	}
+
+	op_buf->free_buffer();
+	res_buf->free_buffer();
+
+}
+
 
 void test_accl_base(options_t options)
 {
@@ -1123,19 +1211,7 @@ void test_accl_base(options_t options)
 		exit(1);
 	}
 
-	
-	
 	MPI_Barrier(MPI_COMM_WORLD);
-	
-	double durationUs = 0.0;
-	auto start = std::chrono::high_resolution_clock::now();
-	ACCL::ACCLRequest* req = accl->nop(true);
-  	accl->wait(req);
-	auto end = std::chrono::high_resolution_clock::now();
-	durationUs = (std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count() / 1000.0);
-	uint64_t durationNs = accl->get_duration(req);
-	std::cout << "sw nop time [us]:"<<durationUs<< std::endl;
-	std::cout << "hw nop time [ns]:"<< std::dec<< durationNs<< std::endl;
 
 	std::cerr << "Rank " << mpi_rank << " passed last barrier before test!" << std::endl << std::flush;
 
@@ -1192,6 +1268,14 @@ void test_accl_base(options_t options)
 		debug(accl->dump_communicator());
 		debug(accl->dump_eager_rx_buffers(false));
 	}
+	if(options.test_mode == ACCL_ALLTOALL || options.test_mode == 0){
+		debug(accl->dump_eager_rx_buffers(false));
+		MPI_Barrier(MPI_COMM_WORLD);
+		test_alltoall(*accl, options);
+		debug(accl->dump_communicator());
+		debug(accl->dump_eager_rx_buffers(false));
+	}
+
 	if(options.test_mode == ACCL_BARRIER){
 		std::cout << "Start barrier test..."<< std::endl;
 		for (int n = 0; n < options.nruns; n++)
@@ -1205,6 +1289,24 @@ void test_accl_base(options_t options)
 			auto end = std::chrono::high_resolution_clock::now();
 			durationUs = (std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count() / 1000.0);
 			std::cout<<"barrier durationUs:"<<durationUs<<std::endl;
+		}
+	}
+	if(options.test_mode == ACCL_NOP){
+		for (int n = 0; n < options.nruns; n++)
+		{
+			std::cout << "Repetition " <<n<< std::endl<<std::flush;
+			MPI_Barrier(MPI_COMM_WORLD);
+			double durationUs = 0.0;
+			auto start = std::chrono::high_resolution_clock::now();
+			ACCL::ACCLRequest* req = accl->nop(false);
+			auto end = std::chrono::high_resolution_clock::now();
+			durationUs = (std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count() / 1000.0);
+			std::cout << "sw nop time [us]:"<<durationUs<< std::endl;
+			accl_log(mpi_rank, format_log("sw_nop", options, durationUs, 0));
+			durationUs = (double)accl->get_duration(req)/1000.0;
+			std::cout << "hw nop time [us]:"<< std::dec<< durationUs<< std::endl;
+			accl_log(mpi_rank, format_log("hw_nop", options, durationUs, 0));
+			
 		}
 	}
 

@@ -1573,7 +1573,7 @@ int reduce( unsigned int count,
                         0, 0, 0, 0
                     );
                     pending_moves++;
-                    if(pending_moves > 2){
+                    if(pending_moves > 0){
                         err |= end_move();
                         pending_moves--;
                     }
@@ -1585,9 +1585,10 @@ int reduce( unsigned int count,
                 return err;
             } else {
                 while(rendezvous_get_addr(root_rank, &buf_addr, &dst_host, count, TAG_ANY) == NOT_READY_ERROR);
-                if(dst_host){
-                    host |= RES_HOST;
-                }
+                // if(dst_host){
+                //     host |= RES_HOST;
+                // }
+                host = (src_buf_host) | (dst_host << 2);
                 //do a RDMA write to the remote address 
                 return move(
                     MOVE_IMMEDIATE,

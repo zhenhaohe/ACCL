@@ -33,3 +33,4 @@
 [submodule "test/refdesigns/Coyote"]
 	path = test/refdesigns/Coyote
 	url = https://github.com/fpgasystems/Coyote.git
+	branch = accl_integration

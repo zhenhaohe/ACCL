@@ -880,7 +880,15 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets cyt_dma_sq_adapter_0_cyt_sq_wr_c
   assign_bd_address -offset 0x00000000 -range 0x00002000 -target_address_space [get_bd_addr_spaces S00_AXI_0] [get_bd_addr_segs ccl_offload_0/s_axi_control/reg0] -force
   assign_bd_address -offset 0x00002000 -range 0x00002000 -target_address_space [get_bd_addr_spaces S00_AXI_0] [get_bd_addr_segs hostctrl_0/s_axi_control/Reg] -force
 
-
+# create some hierarchies
+group_bd_cells cclo [get_bd_cells hostctrl_0] [get_bd_cells smartconnect_0] [get_bd_cells reduce_ops_0] [get_bd_cells ccl_offload_0]
+group_bd_cells rrsp_bypass [get_bd_cells axis_data_fifo_1] [get_bd_cells axis_data_fifo_0]
+group_bd_cells rrsp_arbitration [get_bd_cells axis_switch_1_to_2_inst_2] [get_bd_cells axis_register_slice_0] [get_bd_cells axis_register_slice_1] [get_bd_cells cyt_rdma_arbiter_0] [get_bd_cells axis_register_slice_14] [get_bd_cells axis_register_slice_2]
+group_bd_cells completion_conversion [get_bd_cells axis_register_slice_3] [get_bd_cells axis_data_fifo_6] [get_bd_cells axis_data_fifo_7] [get_bd_cells axis_register_slice_4] [get_bd_cells axis_data_fifo_8] [get_bd_cells cyt_cq_dm_sts_conver_0] [get_bd_cells axis_data_fifo_9] [get_bd_cells cyt_cq_dm_sts_conver_1]
+group_bd_cells request_conversion [get_bd_cells axis_register_slice_9] [get_bd_cells axis_data_fifo_2] [get_bd_cells axis_data_fifo_3] [get_bd_cells axis_data_fifo_4] [get_bd_cells axis_data_fifo_5] [get_bd_cells cyt_dma_sq_adapter_0] [get_bd_cells axis_register_slice_10]
+group_bd_cells sq_conversion [get_bd_cells axis_switch_2_to_1_inst_2] [get_bd_cells axis_switch_1_to_2_inst_3] [get_bd_cells axis_register_slice_11] [get_bd_cells axis_register_slice_6] [get_bd_cells cclo_sq_adapter_0] [get_bd_cells xlconstant_2]
+group_bd_cells local_dma_input_muxing [get_bd_cells axis_switch_2_to_1_inst_0] [get_bd_cells axis_switch_2_to_1_inst_1] [get_bd_cells xlconstant_0] [get_bd_cells axis_register_slice_7] [get_bd_cells axis_register_slice_8] [get_bd_cells xlconstant_1]
+group_bd_cells local_dma_output_demuxing [get_bd_cells axis_switch_1_to_2_inst_0] [get_bd_cells axis_register_slice_12] [get_bd_cells axis_register_slice_13] [get_bd_cells axis_switch_1_to_2_inst_1]
 
 validate_bd_design
 save_bd_design

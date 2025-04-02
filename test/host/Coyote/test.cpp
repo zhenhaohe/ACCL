@@ -481,6 +481,22 @@ void configure_cyt_rdma(std::vector<rank_t> &ranks, int local_rank, ACCL::Coyote
 
 // }
 
+void test_copy(ACCL::ACCL &accl, options_t &options){
+	unsigned int count = options.count;
+	auto op_buf = accl.create_coyotebuffer<float>(count, dataType::float32);
+	auto res_buf = accl.create_coyotebuffer<float>(count, dataType::float32);
+	for (int i = 0; i < count; i++) op_buf.get()->buffer()[i] = (float)i;
+	if (options.host == 0){ op_buf->sync_to_device(); }
+	ACCL::ACCLRequest* req;
+	req = accl.copy(*op_buf, *res_buf, count);
+	accl.wait(req, 1000ms);
+	for (int i = 0; i < count; i++) {
+		if (res_buf.get()->buffer()[i] != op_buf.get()->buffer()[i]) {
+			std::cout << std::to_string(i + 1) + "th item is incorrect!" << std::endl;
+			errors += 1;
+		}
+	}
+}
 
 void test_sendrcv(ACCL::ACCL &accl, options_t &options) {
   	std::cout << "Start send recv test..." << std::endl<<std::flush;
@@ -1145,7 +1161,8 @@ void test_accl_base(options_t options)
 
 	MPI_Barrier(MPI_COMM_WORLD);
 	
-
+	test_copy(*accl, options);
+	
 	if(options.test_mode == ACCL_SEND || options.test_mode == 0){
 		debug(accl->dump_eager_rx_buffers(false));
 		MPI_Barrier(MPI_COMM_WORLD);
